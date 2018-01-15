@@ -1,4 +1,4 @@
-{ stdenv, lib, buildGoPackage, git, glide, libseccomp, pkgconfig, fetchFromGitHub }:
+{ stdenv, lib, buildGoPackage, git, glide10, libseccomp, pkgconfig, fetchFromGitHub }:
 
 buildGoPackage rec {
   name = "cerana-${version}";
@@ -22,5 +22,5 @@ buildGoPackage rec {
   '';
   postBuild = "rm $NIX_BUILD_TOP/go/bin/zfs";
 
-  buildInputs = [ git glide libseccomp pkgconfig ];
+  buildInputs = [ git glide10 libseccomp pkgconfig ];
 }
