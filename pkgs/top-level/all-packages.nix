@@ -1173,6 +1173,8 @@ with pkgs;
 
   glide = callPackage ../development/tools/glide { };
 
+  glide10 = callPackage ../development/tools/glide/glide10.nix { };
+
   glock = callPackage ../development/tools/glock { };
 
   glslviewer = callPackage ../development/tools/glslviewer {
