@@ -191,6 +191,8 @@ rec {
         ln -s ../local-fs.target ../remote-fs.target \
         ../nss-lookup.target ../nss-user-lookup.target ../swap.target \
         $out/multi-user.target.wants/
+        # Cerana Hack
+        ln -s /data/services/cerana.target.wants $out/cerana.target.wants
       ''}
     ''; # */
 
