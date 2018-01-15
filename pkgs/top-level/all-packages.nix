@@ -928,6 +928,10 @@ with pkgs;
 
   ccnet = callPackage ../tools/networking/ccnet { };
 
+  cerana = callPackage ../os-specific/linux/cerana { };
+
+  cerana-scripts = callPackage ../os-specific/linux/cerana/scripts.nix { };
+
   cfdyndns = callPackage ../applications/networking/dyndns/cfdyndns { };
 
   ckbcomp = callPackage ../tools/X11/ckbcomp { };
