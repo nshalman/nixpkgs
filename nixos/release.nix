@@ -131,6 +131,32 @@ in rec {
     ];
   });
 
+  cerana.x86_64-linux = let build = (import lib/eval-config.nix {
+      system = "x86_64-linux";
+      modules = [
+        ./modules/installer/netboot/cerana-minimal.nix
+        versionModule
+      ];
+    }).config.system.build;
+  in
+    pkgs.symlinkJoin {name="netboot"; paths=[
+      build.netbootRamdisk
+      build.kernel
+      build.netbootIpxeScript
+      build.ceranaGrubConfig
+      build.ceranaGrub2Config
+    ];};
+
+  cerana-docker = let build = (import lib/eval-config.nix {
+      system = "x86_64-linux";
+      modules = [
+        ./modules/installer/netboot/cerana-minimal.nix
+        versionModule
+      ];
+    }).config.system.build;
+  in
+    build.netbootDockerImage;
+
   iso_minimal = forAllSystems (system: makeIso {
     module = ./modules/installer/cd-dvd/installation-cd-minimal.nix;
     type = "minimal";
