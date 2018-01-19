@@ -1,7 +1,7 @@
 #!/usr/bin/env nix-shell
 #!nix-shell -i bash --pure -I nixpkgs=./ -p grub2 xorriso bash multipath-tools coreutils utillinux ipxe
 
-IPXE=$(echo $nativeBuildInputs | sed 's| |\n|g' | grep ipxe)
+IPXE=$(echo $buildInputs | sed 's| |\n|g' | grep ipxe)
 
 grub-mkrescue \
     -o result-iso \
