@@ -27,7 +27,7 @@ stdenv.mkDerivation {
     ];
 
 
-  enabledOptions = [ "DOWNLOAD_PROTO_HTTPS" ];
+  enabledOptions = [ "DOWNLOAD_PROTO_HTTPS" "CONSOLE_PCBIOS" "CONSOLE_SERIAL"];
 
   configurePhase = ''
     runHook preConfigure
