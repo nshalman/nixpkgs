@@ -16,6 +16,10 @@
     pkgs.usbutils
   ];
 
+
+  # Use more recent kernel
+  boot.kernelPackages = pkgs.linuxPackages_latest;
+
   # Include support for various filesystems.
   boot.supportedFilesystems = [ "zfs" ];
   boot.zfs.forceImportAll = false;
