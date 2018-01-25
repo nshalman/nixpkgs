@@ -17,15 +17,13 @@
 
     pkgs.grub2
     pkgs.libselinux
-    pkgs.qemu_kvm
+    pkgs.iptables
     pkgs.strace
-    pkgs.gdb
     pkgs.lshw
-    pkgs.consul.bin
-    pkgs.cerana.bin
     pkgs.cerana-scripts
     pkgs.dhcpcd
     pkgs.gptfdisk
+
     pkgs.git
     pkgs.vim
     pkgs.patchelf
@@ -46,30 +44,11 @@
 
   security.apparmor.enable = false;
 
-  services.ceranaBootserver.enable = true;
-  services.ceranaBootstrap.enable = true;
-  services.ceranaBundleHeartbeat.enable = true;
-  services.ceranaClusterConfProvider.enable = true;
-  services.ceranaConsul.enable = true;
-  services.ceranaDatasetHeartbeat.enable = true;
-  services.ceranaDataTradeProvider.enable = true;
-  services.ceranaDhcpProvider.enable = true;
-  services.ceranaHealthProvider.enable = true;
-  services.ceranaKvProvider.enable = true;
-  services.ceranaL2Coordinator.enable = true;
-  services.ceranaMetricsProvider.enable = true;
-  services.ceranaNamespaceProvider.enable = true;
   services.cerananet.enable = true;
-  services.ceranaNodeCoordinator.enable = true;
-  services.ceranaNodeHeartbeat.enable = true;
   services.ceranaPlatformImport.enable = true;
   services.ceranapool.enable = true;
   services.ceranaMoveLogs.enable = true;
-  services.ceranaServiceProvider.enable = true;
-  services.ceranaSystemdProvider.enable = true;
-  services.ceranaZfsProvider.enable = true;
   targets.cerana.enable = true;
-  targets.ceranaLayer2.enable = true;
 
   nix.nrBuildUsers = 0;
   systemd.network.enable = true;

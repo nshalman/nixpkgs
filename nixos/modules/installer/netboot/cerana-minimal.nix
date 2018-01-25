@@ -6,7 +6,7 @@
   imports =
     [ ./cerana.nix
       ../../profiles/cerana-hardware.nix
-      ../../profiles/cerana.nix
+      ../../profiles/ceranaos.nix
       ../../profiles/minimal.nix
     ];
 

@@ -18,7 +18,6 @@ with lib;
 
     # !!! Hack - attributes expected by other modules.
     system.boot.loader.kernelFile = "bzImage";
-    environment.systemPackages = [ pkgs.grub2 pkgs.libselinux pkgs.qemu_kvm pkgs.strace pkgs.gdb pkgs.lshw pkgs.consul.bin pkgs.cerana.bin pkgs.cerana-scripts pkgs.dhcpcd pkgs.gptfdisk pkgs.git pkgs.vim pkgs.patchelf pkgs.screen pkgs.jq ];
 
     fileSystems."/" =
       { fsType = "tmpfs";

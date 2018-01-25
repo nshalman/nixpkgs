@@ -1,5 +1,9 @@
 .PHONY: test server clean build iso update
 
+future-test: result
+	mkdir -p future-test
+	cp result/bzImage result/initrd future-test/
+
 iso: clean build cerana.iso
 	scp cerana.iso root@smartos:/opt/vmconfigs/isos/
 
