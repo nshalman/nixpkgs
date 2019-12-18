@@ -10514,6 +10514,8 @@ in
     stdenv = gccStdenv;
   };
 
+  tailscale = callPackage ../tools/networking/tailscale { };
+
   tcptrack = callPackage ../development/tools/misc/tcptrack { };
 
   teensyduino = arduino-core.override { withGui = true; withTeensyduino = true; };
