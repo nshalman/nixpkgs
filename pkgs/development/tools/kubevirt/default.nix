@@ -1,8 +1,9 @@
-{ lib, buildGoModule, fetchFromGitHub }:
+{ lib, buildBazelPackage, fetchFromGitHub, bash }:
 
-buildGoModule rec {
+buildBazelPackage rec {
   pname = "kubevirt";
   version = "0.41.0";
+  commit = "b7f322409e310ebaf7edb9f657d9864ad5730ab0";
 
   src = fetchFromGitHub {
     owner = pname;
@@ -11,9 +12,7 @@ buildGoModule rec {
     sha256 = "033xh8clijxj93avi6qkwfx2756ac5aqrr4hsmh1pgnp9ihxk0wx";
   };
 
-  vendorSha256 = null;
-
-  subPackages = [ "cmd/virtctl" ];
+  bazelTarget = ":build-virtctl";
 
   meta = with lib; {
     description = "A virtual machine management add-on for Kubernetes";
