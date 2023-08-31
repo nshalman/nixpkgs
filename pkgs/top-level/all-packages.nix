@@ -34396,6 +34396,8 @@ with pkgs;
 
   score-compose = callPackage ../applications/networking/cluster/score-compose { };
 
+  score-helm = callPackage ../applications/networking/cluster/score-helm { };
+
   scudcloud = callPackage ../applications/networking/instant-messengers/scudcloud { };
 
   shod = callPackage ../applications/window-managers/shod { };
