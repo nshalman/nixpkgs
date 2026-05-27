@@ -82,5 +82,16 @@ cd "$builddir"
     CXXFLAGS="-g -O2 -m64"
 
 # GCC's own 3-stage bootstrap.
-make -j"${NIX_BUILD_CORES:-1}" bootstrap
+#
+# Parallelism: GCC's stage-1 compile of gimple-match/generic-match drives
+# each cc1plus to ~1 GB RSS. On a 32 GB / 16-core host, -j16 will OOM-thrash
+# the box into unresponsiveness, so we cap the default at 4 even if the
+# daemon reports more cores. Override by passing --cores=N to nix-build
+# (sets NIX_BUILD_CORES, which we respect verbatim when >0).
+cap=4
+cores="${NIX_BUILD_CORES:-1}"
+if [ "$cores" -eq 0 ] || [ "$cores" -gt "$cap" ]; then
+    cores=$cap
+fi
+make -j"$cores" bootstrap
 make install
