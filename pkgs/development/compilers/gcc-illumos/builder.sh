@@ -85,9 +85,8 @@ cd "$builddir"
 #
 # Parallelism: GCC's stage-1 compile of gimple-match/generic-match drives
 # each cc1plus to ~1 GB RSS. On a 32 GB / 16-core host, -j16 will OOM-thrash
-# the box into unresponsiveness, so we cap the default at 4 even if the
-# daemon reports more cores. Override by passing --cores=N to nix-build
-# (sets NIX_BUILD_CORES, which we respect verbatim when >0).
+# the box into unresponsiveness, so we cap at 4 even if NIX_BUILD_CORES
+# reports more. To raise the cap, edit `cap=` below.
 cap=4
 cores="${NIX_BUILD_CORES:-1}"
 if [ "$cores" -eq 0 ] || [ "$cores" -gt "$cap" ]; then
