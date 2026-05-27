@@ -84,10 +84,10 @@ cd "$builddir"
 # GCC's own 3-stage bootstrap.
 #
 # Parallelism: GCC's stage-1 compile of gimple-match/generic-match drives
-# each cc1plus to ~1 GB RSS. On a 32 GB / 16-core host, -j16 will OOM-thrash
-# the box into unresponsiveness, so we cap at 4 even if NIX_BUILD_CORES
-# reports more. To raise the cap, edit `cap=` below.
-cap=4
+# each cc1plus to ~1 GB RSS. On a 32 GB / 16-core host, -j16 OOM-thrashes
+# the box; -j8 leaves ~24 GB headroom for OS + tmpfs and works. To raise
+# or lower, edit `cap=` below.
+cap=8
 cores="${NIX_BUILD_CORES:-1}"
 if [ "$cores" -eq 0 ] || [ "$cores" -gt "$cap" ]; then
     cores=$cap
