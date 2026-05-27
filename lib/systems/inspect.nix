@@ -306,6 +306,7 @@ rec {
       isDarwin
       isLinux
       isSunOS
+      isIllumos
       isCygwin
       isRedox
     ];
@@ -321,6 +322,9 @@ rec {
     };
     isSunOS = {
       kernel = kernels.solaris;
+    };
+    isIllumos = {
+      kernel = kernels.illumos;
     };
     isFreeBSD = {
       kernel = {

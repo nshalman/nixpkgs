@@ -248,6 +248,7 @@ let
             || isMusl # Linux (allows multiple libcs)
             || isDarwin
             || isSunOS
+            || isIllumos
             || isOpenBSD
             || isFreeBSD
             || isNetBSD # BSDs
