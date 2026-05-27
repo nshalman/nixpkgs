@@ -1,97 +1,137 @@
 # gcc-illumos: GCC built per the SmartOS / OmniOS illumos recipe.
 #
-# Source:  https://github.com/illumos/gcc, tagged gcc-14.2.0-il-1
-# Helper libs (mpfr, gmp, mpc) are unpacked into the source tree per the
-# SmartOS pattern; GCC's top-level configure picks them up automatically.
-# Single patch (1000-ld-flags.patch, adapted from OmniOS) rewrites
-# LINK_ARCH64_SPEC_BASE so the resulting xgcc emits $out/lib/amd64 for
-# runpath / library search instead of the OmniOS /usr/gcc/<MAJOR>/lib
-# convention.
+# Parameterized over GCC version and host compiler. Two version data
+# files ship in versions/ ; default is GCC 14 (versions/14.nix).
 #
-# Build approach (since 2026-05-27 pivot): use proto-strap (the
-# SmartOS-published GCC-10 strap) as the host compiler and configure
-# with --disable-bootstrap (single stage). The pkgsrc/--enable-bootstrap
-# combo wedged the host's memory subsystem during the stage-3 link
-# burst (4 concurrent xg++ links of cc1/cc1plus/lto1/lto-dump each
-# holding ~5-8 GB linker RSS against a ~200 MB libbackend.a). One stage
-# = one burst = one OOM-roulette spin instead of three.
+# Recipe (per /workspace/smartos-live/projects/illumos-extra/gcc{10,14}/):
+# - source from github.com/illumos/gcc, illumos community fork
+# - mpfr/gmp/mpc unpacked into the GCC source tree as in-tree deps
+# - one ld-flags patch (adapted OmniOS 1000-ld-flags.patch) rewriting
+#   LINK_ARCH64_SPEC_BASE so the resulting xgcc emits $out/lib/amd64
+#   for runpath / library search
+#
+# Build mode is --disable-bootstrap (single stage). The pkgsrc
+# /--enable-bootstrap combo wedged the host's memory subsystem during
+# stage-3 link bursts on a 32 GB box; one stage is enough when we
+# start from a clean host compiler.
 #
 # Cleanliness contract:
-# - Output `xgcc`'s OWN RUNPATH inherits proto-strap's specs and will
-#   contain /usr/gcc/10/lib/amd64. The builder additionally passes
-#   LDFLAGS=-Wl,-R$out/lib/amd64 so resulting binaries carry BOTH
-#   paths in RUNPATH; loader resolves against $out first. Cosmetic
-#   removal of the /usr/gcc/10 entry requires string-table extension
-#   (elfedit can't widen strings), deferred for a later pass.
+# - Output `xgcc`'s OWN RUNPATH inherits the host compiler's specs.
+#   For proto.strap that means /usr/gcc/10/lib/amd64 ends up alongside
+#   $out/lib/amd64 in the driver / cc1plus RUNPATHs. The builder passes
+#   LDFLAGS=-Wl,-R$out/lib/amd64 so resulting binaries find their libs
+#   in $out first. Cosmetic cleanup deferred.
 # - Output BINARIES THAT xgcc COMPILES use our patched specs and
 #   naturally emit $out/lib/amd64 — no cleanup needed downstream.
 #
-# This is a *standalone* derivation that does not depend on the
-# nixpkgs stdenv chain (matching Phase 1 of SMARTOS_RECIPE_ROADMAP.md).
-# Phase 2 will build a lean nixpkgs stdenv on top of this compiler.
+# Usage examples:
 #
-# Usage (smoke test):
+#   # Default: gcc-14, host = proto-strap.
 #   nix-build -E '(import ./pkgs/development/compilers/gcc-illumos) {}'
 #
+#   # GCC 10 against proto-strap.
+#   nix-build -E '(import ./pkgs/development/compilers/gcc-illumos) {
+#     version = import ./pkgs/development/compilers/gcc-illumos/versions/10.nix;
+#   }'
+#
+#   # GCC 10 against an already-built gcc-illumos-14 (no proto-strap).
+#   # gcc-illumos doesn't ship gas; supply it separately.
+#   nix-build -E '
+#     let
+#       gcc14 = import ./pkgs/development/compilers/gcc-illumos { };
+#       proto = import ./pkgs/development/compilers/proto-strap { };
+#     in import ./pkgs/development/compilers/gcc-illumos {
+#       version = import ./pkgs/development/compilers/gcc-illumos/versions/10.nix;
+#       host = {
+#         binPath = "${gcc14}/bin";
+#         gasPath = "${proto}/usr/gnu/bin/gas";
+#       };
+#     }'
+#
 {
-  # SmartOS proto.strap derivation, providing the host GCC + binutils +
-  # gas. Default imports the sibling proto-strap package; override to
-  # pin a different strap-cache build.
-  protoStrap ? import ../proto-strap { },
-  # Tools NOT in proto.strap that the GCC build needs at host: make,
-  # gawk, patch, flex, bison. illumos /usr/bin covers bash/sed/awk/tar/m4;
-  # the rest still come from pkgsrc.
+  # Version data: gccVersion, gccHash, mpfrVersion, mpfrHash, ...,
+  # ldFlagsPatch (see versions/*.nix).
+  version ? import ./versions/14.nix,
+
+  # Host compiler description:
+  #   binPath = "..."  PATH prefix prepended to extraHostPath; must
+  #                    contain gcc, g++, cpp (and ideally cc/ld via
+  #                    gcc's own driver behavior).
+  #   gasPath = "..."  absolute path to the GNU assembler. Passed to
+  #                    configure as --with-as= and baked into the new
+  #                    gcc-illumos compiler's specs.
+  # Defaults derive both paths from a fresh proto-strap import.
+  host ? let p = import ../proto-strap { }; in {
+    binPath = "${p}/usr/gcc/10/bin:${p}/usr/gnu/bin";
+    gasPath = "${p}/usr/gnu/bin/gas";
+  },
+
+  # Tools NOT generally in the host compiler: make, gawk, patch, flex,
+  # bison. illumos /usr/bin covers bash/sed/awk/tar/m4; the rest still
+  # come from pkgsrc (or wherever — override if you've staged them
+  # somewhere else).
   extraHostPath ? "/opt/local/bin:/usr/bin:/usr/gnu/bin:/usr/sfw/bin",
+
+  # Cap on `make -j`. 0 (default) = no cap, use NIX_BUILD_CORES verbatim.
+  # Set positive (e.g. 6) on memory-constrained hosts to clamp.
+  coresCap ? 0,
+
   system ? "x86_64-illumos",
 }:
 
 let
   fetchurl = import <nix/fetchurl.nix>;
 
-  gccVersion = "14.2.0-il-1";
-  mpfrVer = "mpfr-4.2.1";
-  gmpVer = "gmp-6.3.0";
-  mpcVer = "mpc-1.3.1";
+  inherit (version)
+    gccVersion gccHash
+    mpfrVersion mpfrHash
+    gmpVersion gmpHash
+    mpcVersion mpcHash
+    ldFlagsPatch
+    ;
 
   src = fetchurl {
     url = "https://github.com/illumos/gcc/archive/refs/tags/gcc-${gccVersion}.tar.gz";
-    sha256 = "18lfswx45lkizs0ygdhhwp5qswb66jqssihwb9wnx6gpw986mgzq";
+    sha256 = gccHash;
     name = "gcc-${gccVersion}.tar.gz";
   };
 
   mpfrSrc = fetchurl {
-    url = "https://ftp.gnu.org/gnu/mpfr/${mpfrVer}.tar.bz2";
-    sha256 = "183acv9b1ji6kzawzwcxnahlij2a1i11jfv256f0ir10bdir7pxr";
-    name = "${mpfrVer}.tar.bz2";
+    url = "https://ftp.gnu.org/gnu/mpfr/mpfr-${mpfrVersion}.tar.bz2";
+    sha256 = mpfrHash;
+    name = "mpfr-${mpfrVersion}.tar.bz2";
   };
 
   gmpSrc = fetchurl {
-    url = "https://ftp.gnu.org/gnu/gmp/${gmpVer}.tar.bz2";
-    sha256 = "1jr03h6h0yz4w9pwyh7p6ijfk3vcsrc6139c5sp9nq7vghd22a5c";
-    name = "${gmpVer}.tar.bz2";
+    url = "https://ftp.gnu.org/gnu/gmp/gmp-${gmpVersion}.tar.bz2";
+    sha256 = gmpHash;
+    name = "gmp-${gmpVersion}.tar.bz2";
   };
 
   mpcSrc = fetchurl {
-    url = "https://ftp.gnu.org/gnu/mpc/${mpcVer}.tar.gz";
-    sha256 = "1f2rqz0hdrrhx4y1i5f8pv6yv08a876k1dqcm9s2p26gyn928r5b";
-    name = "${mpcVer}.tar.gz";
+    url = "https://ftp.gnu.org/gnu/mpc/mpc-${mpcVersion}.tar.gz";
+    sha256 = mpcHash;
+    name = "mpc-${mpcVersion}.tar.gz";
   };
 
-  # Host PATH: proto.strap's GCC + gas come first, then the pkgsrc /
-  # system tools for everything proto.strap doesn't ship.
-  hostPath = "${protoStrap}/usr/gcc/10/bin:${protoStrap}/usr/gnu/bin:${extraHostPath}";
-  asPath = "${protoStrap}/usr/gnu/bin/gas";
+  # Final PATH: host compiler tools first (so they win over anything
+  # else), then the extras for make/patch/etc.
+  hostPath = "${host.binPath}:${extraHostPath}";
 
 in
 derivation {
   name = "gcc-illumos-${gccVersion}";
-  inherit system src mpfrSrc gmpSrc mpcSrc hostPath asPath protoStrap;
+  inherit system src mpfrSrc gmpSrc mpcSrc hostPath;
 
-  inherit mpfrVer gmpVer mpcVer;
+  asPath = host.gasPath;
+  coresCap = toString coresCap;
+  mpfrVer = "mpfr-${mpfrVersion}";
+  gmpVer = "gmp-${gmpVersion}";
+  mpcVer = "mpc-${mpcVersion}";
   version = gccVersion;
 
   builder = "/usr/bin/bash";
   args = [ ./builder.sh ];
 
-  patchFile = ./1000-ld-flags.patch;
+  patchFile = ldFlagsPatch;
 }
