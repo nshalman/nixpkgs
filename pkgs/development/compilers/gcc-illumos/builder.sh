@@ -11,10 +11,9 @@
 #   $mpcSrc      mpc tarball
 #   $patchFile   adapted 1000-ld-flags.patch
 #   $hostPath    colon-separated PATH for the host toolchain
-#                (must contain bash, gcc, g++, make, sed, awk, tar, patch)
+#                (proto.strap's GCC + gas first, then pkgsrc / system
+#                 for make/gawk/patch/flex/bison/...)
 #   $asPath      absolute path to GNU assembler (gas)
-#                — SmartOS uses /usr/gnu/bin/gas; pkgsrc layouts may
-#                  instead use /opt/local/bin/gas
 #   $version     "14.2.0-il-1"
 #   $mpfrVer     "mpfr-4.2.1"
 #   $gmpVer      "gmp-6.3.0"
@@ -27,7 +26,8 @@ set -o xtrace
 
 export PATH="$hostPath"
 
-# Sanity-check host toolchain.
+# Sanity-check host toolchain. proto.strap supplies gcc/g++ but not
+# make/gawk/patch/flex/bison — those still come from the extra host path.
 for tool in bash gcc g++ make sed awk tar patch; do
     type -p "$tool" >/dev/null || { echo "missing host tool: $tool" >&2; exit 1; }
 done
@@ -59,14 +59,30 @@ unpack_dep "$mpcSrc"  "$mpcVer"  mpc
 # Apply the adapted ld-flags patch.
 patch -d "$srcdir" -p1 < "$patchFile"
 
-# Substitute the install prefix into gcc/config/sol2.h.
+# Substitute the install prefix into gcc/config/sol2.h. After this,
+# xgcc (and binaries it later links) will emit -R $out/lib/amd64.
+# Note: this does NOT affect proto.strap's own emitted RUNPATHs —
+# proto.strap's specs are already compiled in. The LDFLAGS below
+# pre-pends $out/lib/amd64 to proto.strap's links so the resulting
+# binaries find their libs in $out first.
 sed -i -e "s|@NIX_GCC_PREFIX@|$out|g" "$srcdir/gcc/config/sol2.h"
 
 # Configure in a separate build directory (required by gcc build system).
+#
+# --disable-bootstrap: skip GCC's 3-stage self-host. proto.strap is
+# already a clean SmartOS-recipe-built compiler; a 3-stage rebuild
+# would just re-derive what we already have. Saves ~3x build time and
+# avoids the multi-stage link bursts that OOM'd the 32 GB host.
+#
+# LDFLAGS=-Wl,-R$out/lib/amd64: proto.strap's compiled-in specs emit
+# -R /usr/gcc/10/lib/amd64 into every link. This LDFLAGS adds OUR path
+# to the same RUNPATH list. Resulting binaries carry both paths; the
+# loader checks $out/lib/amd64 first if it's listed first. (Functional
+# correctness only — cosmetic RUNPATH cleanup is deferred.)
 cd "$builddir"
 "$srcdir/configure" \
     --prefix="$out" \
-    --enable-bootstrap \
+    --disable-bootstrap \
     --build=x86_64-pc-solaris2.11 \
     --host=x86_64-pc-solaris2.11 \
     --target=x86_64-pc-solaris2.11 \
@@ -79,20 +95,19 @@ cd "$builddir"
     --disable-nls \
     --disable-multilib \
     CFLAGS="-g -O2 -m64" \
-    CXXFLAGS="-g -O2 -m64"
+    CXXFLAGS="-g -O2 -m64" \
+    LDFLAGS="-Wl,-R$out/lib/amd64"
 
-# GCC's own 3-stage bootstrap.
+# Single-stage build (we're --disable-bootstrap'd).
 #
-# Parallelism: GCC's stage-1 compile of gimple-match/generic-match drives
-# each cc1plus to ~1 GB RSS, AND stage-3 link of cc1plus/cc1/lto1/lto-dump
-# can briefly hold a 200 MB libbackend.a per concurrent link. On a 32 GB /
-# 16-core host: -j16 OOM-thrashes (compile spike); -j8 cleared compile but
-# tripped on the stage-3 link spike; -j6 throttles concurrent links to ~3.
-# Edit `cap=` below to dial.
+# Parallelism: even single-stage, the final cc1plus / cc1 / lto1 /
+# lto-dump links happen near-simultaneously and each can hold a
+# ~200 MB libbackend.a + ~5-8 GB linker RSS. -j6 limits this enough
+# on a 32 GB host. Edit `cap=` below to dial.
 cap=6
 cores="${NIX_BUILD_CORES:-1}"
 if [ "$cores" -eq 0 ] || [ "$cores" -gt "$cap" ]; then
     cores=$cap
 fi
-make -j"$cores" bootstrap
+make -j"$cores"
 make install
