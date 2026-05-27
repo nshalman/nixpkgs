@@ -606,6 +606,10 @@ rec {
         execFormat = elf;
         families = { };
       };
+      illumos = {
+        execFormat = elf;
+        families = { };
+      };
       wasi = {
         execFormat = wasm;
         families = { };
