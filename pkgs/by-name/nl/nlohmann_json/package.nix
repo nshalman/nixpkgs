@@ -52,7 +52,8 @@ stdenv.mkDerivation (finalAttrs: {
   ]
   ++ lib.optional finalAttrs.finalPackage.doCheck "-DJSON_TestDataDirectory=${testData}";
 
-  doCheck = stdenv.buildPlatform.canExecute stdenv.hostPlatform;
+  # illumos: int8_t is char (not signed char), causing json conversion ambiguity in tests
+  doCheck = stdenv.buildPlatform.canExecute stdenv.hostPlatform && !stdenv.hostPlatform.isIllumos;
 
   # skip tests that require git or modify “installed files”
   preCheck = ''

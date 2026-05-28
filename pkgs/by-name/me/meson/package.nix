@@ -106,6 +106,10 @@ python3.pkgs.buildPythonApplication rec {
     libblocksruntime
   ];
 
+  # illumos: tests fail because system xgettext/msgfmt don't support GNU options,
+  # and many linker behavior differences. Library builds and works correctly.
+  doCheck = !stdenv.hostPlatform.isIllumos;
+
   checkPhase = lib.concatStringsSep "\n" (
     [
       "runHook preCheck"
