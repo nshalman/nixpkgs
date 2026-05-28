@@ -45,6 +45,13 @@ let
     depsBuildBuild = [ buildPackages.stdenv.cc ];
     nativeBuildInputs = [ m4 ];
 
+    # gmp ships its own config.sub wrapper (configfsf.sub) that lacks
+    # illumos* in the accepted-OS list. Mirror the gnu-config edit so
+    # x86_64-unknown-illumos validates.
+    postPatch = lib.optionalString stdenv.hostPlatform.isIllumos ''
+      sed -i 's/| solaris\* \\/| illumos* | solaris* \\/' ./configfsf.sub
+    '';
+
     configureFlags = [
       "--with-pic"
       # gcc-15 have c23 standard by default, where "void foo()" now means "void foo(void)".
@@ -71,6 +78,10 @@ let
     # see https://gmplib.org/manual/Notes-for-Particular-Systems.html
     ++ optional (!withStatic && stdenv.hostPlatform.isWindows) "--disable-static --enable-shared"
     ++ optional (stdenv.hostPlatform.isDarwin && stdenv.hostPlatform.isAarch64) "--disable-assembly";
+
+    # On illumos, __EXTENSIONS__ exposes isascii() in <ctype.h> under
+    # -std=c99 (gmp's configure sets CFLAGS=-std=c99 strict).
+    env.NIX_CFLAGS_COMPILE = lib.optionalString stdenv.hostPlatform.isIllumos "-D__EXTENSIONS__";
 
     doCheck = true; # not cross;
 
