@@ -24,12 +24,24 @@
 #                NIX_BUILD_CORES verbatim (with the gnu-make -j0 quirk
 #                translated to plain -j).
 #
-# Output: $out/bin/gcc, $out/lib/amd64/libgcc_s.so.1, etc.
+# Outputs:
+#   $out/bin/gcc, $out/libexec/.../cc1, $out/include/...
+#   $lib/lib/amd64/libgcc_s.so.1, libstdc++.so.6, etc.
+# Binaries compiled by gcc-illumos have RUNPATH pointing at $lib only,
+# so downstream closures don't pull the full $out compiler.
 
 set -euo pipefail
 set -o xtrace
 
 export PATH="$hostPath"
+
+# Pre-create $lib/lib/amd64 as a symlink to $out/lib/amd64. autotools
+# installs the runtime libs into $out/lib/amd64 (via --prefix=$out);
+# we move them to $lib/lib/amd64 at the end. The symlink keeps any
+# spec-driven `-L $lib/lib/amd64` consulted during the build resolving
+# to the same location autotools is staging.
+mkdir -p "$lib/lib" "$out/lib"
+ln -s "$out/lib/amd64" "$lib/lib/amd64"
 
 # Sanity-check host toolchain.
 for tool in bash gcc g++ make sed awk tar patch; do
@@ -69,7 +81,7 @@ patch -d "$srcdir" -p1 < "$patchFile"
 # (its specs are already baked into its binary). The LDFLAGS below
 # pre-pends $out/lib/amd64 to host-driven links so the resulting
 # binaries find their libs in $out first.
-sed -i -e "s|@NIX_GCC_PREFIX@|$out|g" "$srcdir/gcc/config/sol2.h"
+sed -i -e "s|@NIX_GCC_PREFIX@|$lib|g" "$srcdir/gcc/config/sol2.h"
 
 # Configure in a separate build directory (required by gcc build system).
 #
@@ -101,7 +113,7 @@ cd "$builddir"
     --disable-multilib \
     CFLAGS="-g -O2 -m64" \
     CXXFLAGS="-g -O2 -m64" \
-    LDFLAGS="-Wl,-R$out/lib/amd64"
+    LDFLAGS="-Wl,-R$lib/lib/amd64"
 
 # Single-stage build (we're --disable-bootstrap'd).
 #
@@ -118,3 +130,36 @@ cores="${NIX_BUILD_CORES:-1}"
 [ "$cap" -gt 0 ] && [ "$cores" -gt "$cap" ] && cores=$cap
 make -j"$cores"
 make install
+
+# Move the runtime libs from $out/lib/amd64 to $lib/lib/amd64. The
+# pre-build symlink at $lib/lib/amd64 → $out/lib/amd64 gets removed
+# first. After the move, binaries we compile (RUNPATH=$lib/lib/amd64)
+# find their libs at $lib, and gcc-illumos's own internal binaries
+# (cc1plus, lto1, ...) — also built with -R$lib/lib/amd64 — resolve
+# to the same place.
+rm "$lib/lib/amd64"
+mv "$out/lib/amd64" "$lib/lib/amd64"
+
+# Bring $lib's runtime closure clean: remove or move anything that
+# would create a $lib → $out reference (cycle).
+#  - .la libtool archives: hard-coded $libdir = $out/lib/amd64 strings.
+#    Standard nixpkgs practice is to delete them; they're rarely
+#    consulted by modern build systems and harm more than they help.
+#  - .gdb.py pretty-printer scripts: contain $libdir/$pythondir strings
+#    pointing at $out. Not needed at runtime; move to $out so users who
+#    want them via $out/share can still find them.
+#  - libsanitizer (libasan, libubsan, libtsan, liblsan) + their .spec:
+#    libsanitizer's Makefile injects a second `-R $libdir = $out/lib/amd64`
+#    into the sanitizer shared libs in addition to our LDFLAGS, so they
+#    end up with both paths in DT_RUNPATH. Sanitizers are optional;
+#    keep them in $out for now. Promote back to $lib if/when needed.
+find "$lib/lib/amd64" -name '*.la' -delete
+mkdir -p "$out/lib/amd64"
+for f in "$lib"/lib/amd64/*-gdb.py \
+         "$lib"/lib/amd64/libasan.* \
+         "$lib"/lib/amd64/libubsan.* \
+         "$lib"/lib/amd64/libtsan.* \
+         "$lib"/lib/amd64/liblsan.* \
+         "$lib"/lib/amd64/libsanitizer.spec; do
+    [ -e "$f" ] && mv "$f" "$out/lib/amd64/"
+done

@@ -11,8 +11,8 @@ done
 ln -s "$gccIllumos/bin/gcc" "$out/bin/cc"
 
 # Expose gcc-illumos's libgcc_s / libstdc++ so cc-wrapper's $out/lib
-# resolves them.
-for f in "$gccIllumos"/lib/amd64/*; do
+# resolves them. Libs live in the `lib` output (separate from compiler).
+for f in "$gccIllumosLib"/lib/amd64/*; do
     [ -e "$f" ] && ln -s "$f" "$out/lib/$(basename "$f")"
 done
 

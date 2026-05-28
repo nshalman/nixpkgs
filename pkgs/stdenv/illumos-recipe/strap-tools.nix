@@ -13,7 +13,9 @@
 }:
 derivation {
   name = "illumos-strap-tools";
-  inherit system gccIllumos protoStrap;
+  inherit system protoStrap;
+  gccIllumos = gccIllumos.out;
+  gccIllumosLib = gccIllumos.lib;
   builder = "/usr/bin/bash";
   args = [ ./strap-tools-builder.sh ];
   PATH = "/usr/bin:/usr/sbin";
