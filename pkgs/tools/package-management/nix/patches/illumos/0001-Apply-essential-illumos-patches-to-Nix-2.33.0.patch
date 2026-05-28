@@ -1,0 +1,95 @@
+From 5a56b30682332c2bc2a050ebd280a983e7e88638 Mon Sep 17 00:00:00 2001
+From: Nahum Shalman <nshalman@edgecast.io>
+Date: Thu, 10 Jul 2025 20:30:17 +0000
+Subject: [PATCH] Apply essential illumos patches to Nix 2.33.0
+
+- Add socket library support for illumos (libutil, libstore, main binary)
+- Add file locking fix for illumos EINVAL handling
+- Terminal and signal handling fixes already applied
+
+This is the minimal set of patches needed to build Nix on illumos/SmartOS.
+---
+ src/libstore/meson.build       |  4 ++++
+ src/libstore/unix/pathlocks.cc | 23 ++++++++++++++++++++---
+ src/nix/meson.build            |  7 +++++++
+ 3 files changed, 31 insertions(+), 3 deletions(-)
+
+diff --git a/src/libstore/meson.build b/src/libstore/meson.build
+index 0a0d2b8ca..65a4e6aa8 100644
+--- a/src/libstore/meson.build
++++ b/src/libstore/meson.build
+@@ -102,6 +102,10 @@ endif
+ if host_machine.system() == 'windows'
+   wsock32 = cxx.find_library('wsock32')
+   deps_other += [ wsock32 ]
++elif host_machine.system() == 'sunos'
++  socket = cxx.find_library('socket')
++  network_service_library = cxx.find_library('nsl')
++  deps_other += [socket, network_service_library]
+ endif
+ 
+ subdir('nix-meson-build-support/libatomic')
+diff --git a/src/libstore/unix/pathlocks.cc b/src/libstore/unix/pathlocks.cc
+index 6117b82c8..f9c171a0f 100644
+--- a/src/libstore/unix/pathlocks.cc
++++ b/src/libstore/unix/pathlocks.cc
+@@ -51,9 +51,17 @@ bool lockFile(Descriptor desc, LockType lockType, bool wait)
+     if (wait) {
+         while (flock(desc, type) != 0) {
+             checkInterrupt();
+-            if (errno != EINTR)
++            if (errno != EINTR) {
++#ifdef __sun
++                // On illumos/Solaris, unlocking may fail with EINVAL if the file descriptor
++                // is no longer valid or the lock was already released. This is safe to ignore
++                // for unlock operations.
++                if (lockType == ltNone && errno == EINVAL) {
++                    return true;
++                }
++#endif
+                 throw SysError("acquiring/releasing lock");
+-            else
++            } else
+                 return false;
+         }
+     } else {
+@@ -61,8 +69,17 @@ bool lockFile(Descriptor desc, LockType lockType, bool wait)
+             checkInterrupt();
+             if (errno == EWOULDBLOCK)
+                 return false;
+-            if (errno != EINTR)
++            if (errno != EINTR) {
++#ifdef __sun
++                // On illumos/Solaris, unlocking may fail with EINVAL if the file descriptor
++                // is no longer valid or the lock was already released. This is safe to ignore
++                // for unlock operations.
++                if (lockType == ltNone && errno == EINVAL) {
++                    return true;
++                }
++#endif
+                 throw SysError("acquiring/releasing lock");
++            }
+         }
+     }
+ 
+diff --git a/src/nix/meson.build b/src/nix/meson.build
+index 77e3c05dc..79932fd2c 100644
+--- a/src/nix/meson.build
++++ b/src/nix/meson.build
+@@ -31,6 +31,13 @@ deps_private_maybe_subproject = [
+ deps_public_maybe_subproject = []
+ subdir('nix-meson-build-support/subprojects')
+ 
++# Add socket libraries for illumos/Solaris
++if host_machine.system() == 'sunos'
++  socket = cxx.find_library('socket')
++  network_service_library = cxx.find_library('nsl')
++  deps_other += [socket, network_service_library]
++endif
++
+ subdir('nix-meson-build-support/export-all-symbols')
+ subdir('nix-meson-build-support/windows-version')
+ 
+-- 
+2.50.1
+

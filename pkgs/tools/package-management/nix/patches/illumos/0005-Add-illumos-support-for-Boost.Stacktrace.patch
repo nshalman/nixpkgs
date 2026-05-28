@@ -1,0 +1,28 @@
+From 1b808a41921aa1e8f6b7a345390dbbb611dc0b4c Mon Sep 17 00:00:00 2001
+From: Nahum Shalman <nshalman@edgecast.io>
+Date: Thu, 10 Jul 2025 20:52:57 +0000
+Subject: [PATCH] Add illumos support for Boost.Stacktrace
+
+illumos provides _Unwind_Backtrace without requiring _GNU_SOURCE,
+similar to Darwin and FreeBSD. Define BOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED
+to avoid compilation errors.
+---
+ src/nix/crash-handler.cc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/nix/crash-handler.cc b/src/nix/crash-handler.cc
+index 29c4f2027..1c2a836e2 100644
+--- a/src/nix/crash-handler.cc
++++ b/src/nix/crash-handler.cc
+@@ -8,7 +8,7 @@
+ #include <sstream>
+ 
+ // Darwin and FreeBSD stdenv do not define _GNU_SOURCE but do have _Unwind_Backtrace.
+-#if defined(__APPLE__) || defined(__FreeBSD__)
++#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__sun)
+ #  define BOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED
+ #endif
+ 
+-- 
+2.50.1
+

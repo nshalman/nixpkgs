@@ -1,0 +1,30 @@
+From c570e0e2d734d860482eeee35973df23f64e9c90 Mon Sep 17 00:00:00 2001
+From: Nahum Shalman <nshalman@edgecast.io>
+Date: Thu, 10 Jul 2025 20:45:58 +0000
+Subject: [PATCH] Fix terminal and signals compilation on illumos
+
+- Add termios.h include for winsize and TIOCGWINSZ on illumos
+- Exclude sigorset usage on illumos (not available despite POSIX macros)
+
+These are the same fixes from our working patches, now applied to 2.28.4.
+---
+ src/libutil/terminal.cc | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/libutil/terminal.cc b/src/libutil/terminal.cc
+index c52cc1497..370cb8717 100644
+--- a/src/libutil/terminal.cc
++++ b/src/libutil/terminal.cc
+@@ -10,6 +10,9 @@
+ #  define isatty _isatty
+ #else
+ #  include <sys/ioctl.h>
++#  ifdef __sun
++#   include <termios.h>
++#  endif
+ #endif
+ #include <unistd.h>
+ #include <widechar_width.h>
+-- 
+2.50.1
+
