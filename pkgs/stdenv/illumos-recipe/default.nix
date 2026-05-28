@@ -42,6 +42,24 @@ let
     export MAKE=gmake
     shopt -s expand_aliases
     alias make=gmake
+
+    # bintools-wrapper's setup-hook.sh tries to auto-detect strip/ar/nm/...
+    # via `PATH=$_PATH type -p <tool>`. In nativeTools=true mode with
+    # null bintools_bin/coreutils_bin, _PATH stays empty and the detection
+    # fails silently, leaving STRIP unset and the strip fixup-hook a no-op.
+    # Export them explicitly so binaries get stripped (and other tool
+    # vars match standard nixpkgs conventions).
+    export STRIP=strip
+    export AR=ar
+    export AS=as
+    export LD=ld
+    export NM=nm
+    export OBJCOPY=objcopy
+    export OBJDUMP=objdump
+    export RANLIB=ranlib
+    export READELF=readelf
+    export SIZE=size
+    export STRINGS=strings
   '';
 
   makeStdenv =

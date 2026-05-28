@@ -123,6 +123,11 @@ derivation {
   name = "gcc-illumos-${gccVersion}";
   inherit system src mpfrSrc gmpSrc mpcSrc hostPath;
 
+  # `out` holds the compiler (driver, cc1*, headers, libexec, ...).
+  # `lib` holds the runtime libs (libgcc_s, libstdc++, ...) so binaries
+  # compiled by gcc-illumos depend only on $lib, not the full compiler.
+  outputs = [ "out" "lib" ];
+
   asPath = host.gasPath;
   coresCap = toString coresCap;
   mpfrVer = "mpfr-${mpfrVersion}";
