@@ -165,7 +165,15 @@ stdenv.mkDerivation (
         "-Dusedevel"
         "-Uversiononly"
       ]
-      ++ lib.optional stdenv.hostPlatform.isSunOS "-Dcc=gcc"
+      ++ lib.optional (stdenv.hostPlatform.isSunOS || stdenv.hostPlatform.isIllumos) "-Dcc=gcc"
+      # illumos: Configure's pointer-size probe runs a tiny test program that
+      # fails on our nativeTools cc-wrapper (silently guesses 4), then refuses
+      # to continue with -Duse64bitall. Tell it the right answers directly.
+      ++ lib.optionals (stdenv.hostPlatform.isIllumos && stdenv.hostPlatform.is64bit) [
+        "-Dptrsize=8"
+        "-Dlongsize=8"
+        "-Duse64bitall"
+      ]
       ++ lib.optional enableThreading "-Dusethreads"
       ++ lib.optional (!enableCrypt) "-A clear:d_crypt_r"
       ++ lib.optionals (stdenv.hostPlatform.isFreeBSD && crossCompiling && enableCrypt) [
