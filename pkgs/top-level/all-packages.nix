@@ -5421,7 +5421,10 @@ with pkgs;
           nativeLibc = stdenv.targetPlatform == stdenv.hostPlatform && stdenv.cc.nativeLibc or false;
           nativePrefix = stdenv.cc.nativePrefix or "";
 
-          noLibc = (self.libc == null);
+          # Mirror wrapCCWith's noLibc: only "no libc" when we don't
+          # have a system libc to fall back to. illumos's libc lives
+          # in /lib/64 and is consumed via nativeLibc=true.
+          noLibc = !self.nativeLibc && (self.libc == null);
 
           inherit bintools libc;
         }
