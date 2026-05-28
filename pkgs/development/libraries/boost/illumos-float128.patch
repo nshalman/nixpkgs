@@ -1,0 +1,14 @@
+--- a/libs/charconv/src/float128_impl.hpp
++++ b/libs/charconv/src/float128_impl.hpp
+@@ -92,7 +92,11 @@ inline __float128 to_float128(Unsigned_Integer w) noexcept
+ template <>
+ inline __float128 to_float128<uint128>(uint128 w) noexcept
+ {
++#ifdef __sun
++    return ldexpq(static_cast<__float128>(w.high), 64) + static_cast<__float128>(w.low);
++#else
+     return ldexp(static_cast<__float128>(w.high), 64) + static_cast<__float128>(w.low);
++#endif
+ }
+
+ template <typename Unsigned_Integer, typename ArrayPtr>

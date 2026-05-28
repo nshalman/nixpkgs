@@ -23,6 +23,9 @@ stdenv.mkDerivation (finalAttrs: {
 
   patches = [
     ./01-cygwin.patch
+  ] ++ lib.optionals stdenv.hostPlatform.isIllumos [
+    # ncurses termcap.h uses const char * but libedit's sys.h declarations don't
+    ./02-illumos-termcap-const.patch
   ];
 
   nativeBuildInputs = [

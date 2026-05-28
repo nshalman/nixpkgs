@@ -44,6 +44,10 @@ stdenv.mkDerivation (finalAttrs: {
     #
     # <https://github.com/uxlfoundation/oneTBB/pull/1849>
     ./fix-libtbbmalloc-dlopen.patch
+  ]
+  # illumos linker doesn't support GNU version scripts
+  ++ lib.optionals stdenv.hostPlatform.isIllumos [
+    ./fix-illumos-build.patch
   ];
 
   nativeBuildInputs = [
@@ -57,7 +61,8 @@ stdenv.mkDerivation (finalAttrs: {
     hwloc
   ];
 
-  doCheck = true;
+  # illumos: test_composite_node.cpp has ambiguous pow() overload error
+  doCheck = !stdenv.hostPlatform.isIllumos;
 
   dontUseNinjaCheck = true;
 
@@ -76,6 +81,10 @@ stdenv.mkDerivation (finalAttrs: {
 
   cmakeFlags = [
     (lib.cmakeBool "TBB_DISABLE_HWLOC_AUTOMATIC_SEARCH" false)
+  ]
+  # illumos: tests have compilation errors (ambiguous pow() overload)
+  ++ lib.optionals stdenv.hostPlatform.isIllumos [
+    (lib.cmakeBool "TBB_TEST" false)
   ];
 
   env = {

@@ -23,6 +23,11 @@ stdenv.mkDerivation rec {
     hash = "sha256-9VeRG/YXFiHh9y/zX1sYJbs1tS7UUyXc3ukx5dPAeHo=";
   };
 
+  # illumos linker doesn't support -export-symbols-regex
+  patches = lib.optionals stdenv.hostPlatform.isIllumos [
+    ./illumos-disable-export-symbols.patch
+  ];
+
   strictDeps = true;
   # Beware: non-bootstrap libidn2 is overridden by ./hack.nix
   outputs = [

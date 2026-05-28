@@ -241,6 +241,11 @@ stdenv.mkDerivation {
         extraPrefix = "libs/context/";
         hash = "sha256-Z8uw2+4IEybqVcU25i/0XJKS16hi/+3MXUxs53ghjL0=";
       })
+    ]
+    # illumos fixes
+    ++ lib.optionals stdenv.hostPlatform.isIllumos [
+      ./illumos-float128.patch
+      ./illumos-process-typos.patch
     ];
 
   meta = {

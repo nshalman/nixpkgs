@@ -1,0 +1,91 @@
+Add illumos/Solaris POSIX PTY support
+
+illumos doesn't have openpty() or pty.h. Use POSIX PTY functions
+(posix_openpt, grantpt, unlockpt, ptsname) instead.
+
+This patch:
+1. Excludes pty.h inclusion on illumos (not available)
+2. Adds necessary headers (fcntl.h, stdlib.h) for POSIX PTY functions
+3. Adds exp_int.h for expDiagLogPtrStrStr declaration (fixes implicit function error)
+4. Adds static buffers for PTY names
+5. Adds illumos PTY allocation using posix_openpt()
+6. Fixes exp_pty.c: on illumos, sys/fcntl.h doesn't declare open()
+
+--- a/pty_termios.c	2026-01-04 02:20:12.772112955 +0000
++++ pty_termios.c	2026-01-04 02:21:00.785837046 +0000
+@@ -10,6 +10,8 @@
+ /* openpty */
+ #if defined(__APPLE__)
+ #  include <util.h>
++#elif defined(__sun)
++   /* illumos/Solaris: no pty.h, use POSIX PTY functions instead */
+ #elif defined(__FreeBSD__)
+ #  include <sys/types.h>
+ #  include <sys/ioctl.h>
+@@ -22,6 +24,11 @@
+ #include <stdio.h>
+ #include <signal.h>
+ 
++#ifdef __sun
++#include <fcntl.h>
++#include <stdlib.h>
++#endif
++
+ #if defined(SIGCLD) && !defined(SIGCHLD)
+ #define SIGCHLD SIGCLD
+ #endif
+@@ -35,6 +42,7 @@
+
+ #include "expect_cf.h"
+ #include "tclInt.h"
++#include "exp_int.h"
+
+ extern char * expErrnoMsg    _ANSI_ARGS_((int));
+
+@@ -211,6 +219,11 @@
+ char *exp_pty_slave_name;
+ char *exp_pty_error;
+ 
++#ifdef __sun
++static char master_name_buf[64];
++static char slave_name_buf[64];
++#endif
++
+ #if 0
+ static void
+ pty_stty(s,name)
+@@ -496,6 +508,22 @@
+ 	return master;
+ #endif /* HAVE_OPENPTY */
+ 
++#ifdef __sun
++#undef TEST_PTY
++	/* Use POSIX PTY functions on illumos/Solaris */
++	master = posix_openpt(O_RDWR);
++	if (master < 0) {
++		return -1;
++	}
++	if (grantpt(master) < 0 || unlockpt(master) < 0) {
++		close(master);
++		return -1;
++	}
++	strcpy(slave_name_buf, ptsname(master));
++	exp_pty_slave_name = slave_name_buf;
++	return master;
++#endif /* __sun */
++
+ #if defined(TEST_PTY)
+ 	/*
+ 	 * all pty allocation mechanisms after this require testing
+--- a/exp_pty.c	2026-01-04 02:20:12.774426866 +0000
++++ exp_pty.c	2026-01-04 02:21:28.817533324 +0000
+@@ -14,6 +14,9 @@
+ #endif
+ #ifdef HAVE_SYS_FCNTL_H
+ #  include <sys/fcntl.h>
++#  ifdef __sun
++#    include <fcntl.h>
++#  endif
+ #else
+ #  include <fcntl.h>
+ #endif
