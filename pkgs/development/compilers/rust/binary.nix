@@ -84,6 +84,7 @@ rec {
         "i686-freebsd"
         "x86_64-freebsd"
         "x86_64-solaris"
+        "x86_64-illumos"
         "aarch64-linux"
         "armv6l-linux"
         "armv7l-linux"
