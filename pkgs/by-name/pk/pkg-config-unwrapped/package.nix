@@ -48,7 +48,7 @@ stdenv.mkDerivation rec {
   configureFlags = [
     "--with-internal-glib"
   ]
-  ++ lib.optionals (stdenv.hostPlatform.isSunOS) [
+  ++ lib.optionals (stdenv.hostPlatform.isSunOS || stdenv.hostPlatform.isIllumos) [
     "--with-libiconv=gnu"
     "--with-system-library-path"
     "--with-system-include-path"
