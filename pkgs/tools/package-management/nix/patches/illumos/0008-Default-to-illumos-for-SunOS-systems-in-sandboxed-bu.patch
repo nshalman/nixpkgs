@@ -1,0 +1,37 @@
+From c304e1ef6cb1751337e2b6c759b9ed1eb2d582f1 Mon Sep 17 00:00:00 2001
+From: Nahum Shalman <nshalman@edgecast.io>
+Date: Wed, 30 Jul 2025 20:51:40 +0000
+Subject: [PATCH] Default to illumos for SunOS systems in sandboxed builds
+
+The uname -o check doesn't work reliably in Nix build sandboxes.
+Since we're building via nixpkgs on illumos, it's safe to assume
+any SunOS system is actually illumos.
+---
+ src/libstore/meson.build | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/src/libstore/meson.build b/src/libstore/meson.build
+index 7b3937338..14358c22d 100644
+--- a/src/libstore/meson.build
++++ b/src/libstore/meson.build
+@@ -36,9 +36,17 @@ subdir('nix-meson-build-support/default-system-cpu')
+ # Detect illumos vs other SunOS systems using uname -o
+ nix_system = host_machine.system()
+ if nix_system == 'sunos'
++  # Try to detect using uname -o if available (might fail in sandboxed builds)
+   uname_o = run_command('uname', '-o', check: false)
+   if uname_o.returncode() == 0 and uname_o.stdout().strip() == 'illumos'
+     nix_system = 'illumos'
++    message('Detected illumos system via uname -o')
++  else
++    # Default to illumos for SunOS in Nix builds
++    # This handles sandbox environments where uname might not work
++    # Since we're building on illumos via nixpkgs, this is a safe assumption
++    nix_system = 'illumos'
++    message('Defaulting to illumos for SunOS system (likely in sandbox)')
+   endif
+ endif
+ 
+-- 
+2.50.1
+

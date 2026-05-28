@@ -1,0 +1,55 @@
+From 35d1ab7ecae04a0fdbbea82729aa020a838013c1 Mon Sep 17 00:00:00 2001
+From: Nahum Shalman <nshalman@edgecast.io>
+Date: Thu, 10 Jul 2025 20:50:24 +0000
+Subject: [PATCH] Fix Boehm GC allocator compatibility on illumos
+
+traceable_allocator<void> has private typedefs that Boost containers
+expect to be public. Create illumos_traceable_allocator wrapper that
+provides public access to required typedefs for Boost compatibility.
+---
+ .../include/nix/expr/gc-small-vector.hh       | 22 +++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/src/libexpr/include/nix/expr/gc-small-vector.hh b/src/libexpr/include/nix/expr/gc-small-vector.hh
+index 95c028e5a..4a776118b 100644
+--- a/src/libexpr/include/nix/expr/gc-small-vector.hh
++++ b/src/libexpr/include/nix/expr/gc-small-vector.hh
+@@ -4,13 +4,35 @@
+ 
+ #include "nix/expr/value.hh"
+ 
++#ifdef __sun
++// Fix for illumos: traceable_allocator<void> has private typedefs
++// that Boost containers expect to be public. Provide a wrapper.
++template <typename T>
++struct illumos_traceable_allocator : public traceable_allocator<T> {
++    using traceable_allocator<T>::traceable_allocator;
++};
++
++template <>
++struct illumos_traceable_allocator<void> : public traceable_allocator<void> {
++public:
++    typedef void value_type;
++    typedef void* pointer;
++    typedef const void* const_pointer;
++    template <class U> struct rebind { typedef illumos_traceable_allocator<U> other; };
++};
++#endif
++
+ namespace nix {
+ 
+ /**
+  * A GC compatible vector that may used a reserved portion of `nItems` on the stack instead of allocating on the heap.
+  */
+ template<typename T, size_t nItems>
++#ifdef __sun
++using SmallVector = boost::container::small_vector<T, nItems, illumos_traceable_allocator<T>>;
++#else
+ using SmallVector = boost::container::small_vector<T, nItems, traceable_allocator<T>>;
++#endif
+ 
+ /**
+  * A vector of value pointers. See `SmallVector`.
+-- 
+2.50.1
+

@@ -1,0 +1,143 @@
+From a6f65d0b007adef905e9470a990b25dbabbb8596 Mon Sep 17 00:00:00 2001
+From: Nahum Shalman <nshalman@edgecast.io>
+Date: Thu, 24 Jul 2025 16:05:29 +0000
+Subject: [PATCH] Fix garbage collection on illumos
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The garbage collector was failing on illumos because it assumed
+/proc/PID/exe, /proc/PID/cwd, and /proc/PID/fd/* were symlinks,
+but on illumos they are not.
+
+This commit:
+- Adds illumos-specific code that uses native tools (pwdx, pfiles, penv)
+  to find process roots instead of reading /proc symlinks
+- Skips the lsof fallback on illumos since illumos lsof doesn't support
+  the -n flag that nix expects
+- Moves readProcLink to be Linux-only since it's not used elsewhere
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ src/libstore/gc.cc | 72 ++++++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 67 insertions(+), 5 deletions(-)
+
+diff --git a/src/libstore/gc.cc b/src/libstore/gc.cc
+index 37f148cbc..f4ff54f36 100644
+--- a/src/libstore/gc.cc
++++ b/src/libstore/gc.cc
+@@ -320,6 +320,13 @@ typedef boost::unordered_flat_map<
+     std::equal_to<>>
+     UncheckedRoots;
+ 
++static std::string quoteRegexChars(const std::string & raw)
++{
++    static auto specialRegex = std::regex(R"([.^$\\*+?()\[\]{}|])");
++    return std::regex_replace(raw, specialRegex, R"(\$&)");
++}
++
++#ifndef __sun
+ static void readProcLink(const std::filesystem::path & file, UncheckedRoots & roots)
+ {
+     std::filesystem::path buf;
+@@ -334,12 +341,63 @@ static void readProcLink(const std::filesystem::path & file, UncheckedRoots & ro
+     if (buf.is_absolute())
+         roots[buf.string()].emplace(file.string());
+ }
++#endif
+ 
+-static std::string quoteRegexChars(const std::string & raw)
++#ifdef __sun
++static void readIllumosProcessRoots(const std::string & pid, const std::string & storeDir, UncheckedRoots & unchecked)
+ {
+-    static auto specialRegex = boost::regex(R"([.^$\\*+?()\[\]{}|])");
+-    return boost::regex_replace(raw, specialRegex, R"(\$&)");
++    auto storePathRegex = std::regex(quoteRegexChars(storeDir) + R"(/[0-9a-z]+[0-9a-zA-Z\+\-\._\?=]*)");
++
++    // Use pwdx to get current working directory
++    try {
++        auto pwdxOutput = runProgram("pwdx", true, { pid });
++        // pwdx output format: "PID:\t/path/to/cwd"
++        auto colonPos = pwdxOutput.find(':');
++        if (colonPos != std::string::npos) {
++            auto path = pwdxOutput.substr(colonPos + 1);
++            // Trim whitespace
++            path.erase(0, path.find_first_not_of(" \t\n\r"));
++            path.erase(path.find_last_not_of(" \t\n\r") + 1);
++            if (!path.empty() && path[0] == '/')
++                unchecked[path].emplace(fmt("/proc/%s/cwd", pid));
++        }
++    } catch (ExecError & e) {
++        // Process may have exited, ignore
++    }
++
++    // Use pfiles to get open file descriptors
++    try {
++        auto pfilesOutput = runProgram("pfiles", true, { pid });
++        // Parse pfiles output for absolute paths
++        auto lines = tokenizeString<std::vector<std::string>>(pfilesOutput, "\n");
++        for (const auto & line : lines) {
++            // Look for lines that contain absolute paths
++            size_t slashPos = line.find('/');
++            if (slashPos != std::string::npos) {
++                // Extract path from the line
++                size_t endPos = line.find_first_of(" \t", slashPos);
++                std::string path = (endPos != std::string::npos) 
++                    ? line.substr(slashPos, endPos - slashPos)
++                    : line.substr(slashPos);
++                if (!path.empty() && path[0] == '/')
++                    unchecked[path].emplace(fmt("pfiles:%s", pid));
++            }
++        }
++    } catch (ExecError & e) {
++        // Process may have exited or no permissions, ignore
++    }
++
++    // Use penv to scan environment variables for store paths
++    try {
++        auto penvOutput = runProgram("penv", true, { pid });
++        auto env_end = std::sregex_iterator{};
++        for (auto i = std::sregex_iterator(penvOutput.begin(), penvOutput.end(), storePathRegex); i != env_end; ++i)
++            unchecked[i->str()].emplace(fmt("penv:%s", pid));
++    } catch (ExecError & e) {
++        // Process may have exited or no permissions, ignore
++    }
+ }
++#endif
+ 
+ #ifdef __linux__
+ static void readFileRoots(const std::filesystem::path & path, UncheckedRoots & roots)
+@@ -367,7 +425,10 @@ void LocalStore::findRuntimeRoots(Roots & roots, bool censor)
+             checkInterrupt();
+             if (boost::regex_match(ent->d_name, digitsRegex)) {
+                 try {
+-                    readProcLink(fmt("/proc/%s/exe", ent->d_name), unchecked);
++#ifdef __sun
++                    readIllumosProcessRoots(ent->d_name, storeDir, unchecked);
++#else
++                    readProcLink(fmt("/proc/%s/exe" ,ent->d_name), unchecked);
+                     readProcLink(fmt("/proc/%s/cwd", ent->d_name), unchecked);
+ 
+                     auto fdStr = fmt("/proc/%s/fd", ent->d_name);
+@@ -404,6 +465,7 @@ void LocalStore::findRuntimeRoots(Roots & roots, bool censor)
+                          i != env_end;
+                          ++i)
+                         unchecked[i->str()].emplace(envFile);
++#endif
+                 } catch (SystemError & e) {
+                     if (errno == ENOENT || errno == EACCES || errno == ESRCH)
+                         continue;
+@@ -415,7 +477,7 @@ void LocalStore::findRuntimeRoots(Roots & roots, bool censor)
+             throw SysError("iterating /proc");
+     }
+ 
+-#if !defined(__linux__)
++#if !defined(__linux__) && !defined(__sun)
+     // lsof is really slow on OS X. This actually causes the gc-concurrent.sh test to fail.
+     // See: https://github.com/NixOS/nix/issues/3011
+     // Because of this we disable lsof when running the tests.
+-- 
+2.50.1
+

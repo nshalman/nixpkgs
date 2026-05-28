@@ -1,0 +1,40 @@
+From 52913a0c23581aab7b6dcbeb0afe75e20d0e6b9c Mon Sep 17 00:00:00 2001
+From: Nahum Shalman <nshalman@edgecast.io>
+Date: Thu, 10 Jul 2025 20:51:32 +0000
+Subject: [PATCH] Improve GC allocator wrapper - fix void specialization rebind
+
+Ensure that all template rebind operations go through our wrapper
+instead of falling back to the original traceable_allocator which
+has private typedefs. Provide complete void specialization.
+---
+ src/libexpr/include/nix/expr/gc-small-vector.hh | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/src/libexpr/include/nix/expr/gc-small-vector.hh b/src/libexpr/include/nix/expr/gc-small-vector.hh
+index 4a776118b..26dea44c0 100644
+--- a/src/libexpr/include/nix/expr/gc-small-vector.hh
++++ b/src/libexpr/include/nix/expr/gc-small-vector.hh
+@@ -10,14 +10,17 @@
+ template <typename T>
+ struct illumos_traceable_allocator : public traceable_allocator<T> {
+     using traceable_allocator<T>::traceable_allocator;
++    template <class U> struct rebind { typedef illumos_traceable_allocator<U> other; };
+ };
+ 
+ template <>
+-struct illumos_traceable_allocator<void> : public traceable_allocator<void> {
++struct illumos_traceable_allocator<void> {
+ public:
+-    typedef void value_type;
+-    typedef void* pointer;
++    typedef size_t      size_type;
++    typedef ptrdiff_t   difference_type;
++    typedef void*       pointer;
+     typedef const void* const_pointer;
++    typedef void        value_type;
+     template <class U> struct rebind { typedef illumos_traceable_allocator<U> other; };
+ };
+ #endif
+-- 
+2.50.1
+

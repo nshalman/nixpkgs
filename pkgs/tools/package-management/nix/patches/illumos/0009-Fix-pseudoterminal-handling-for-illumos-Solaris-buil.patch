@@ -1,0 +1,104 @@
+From b071304d5bb5c26151c4ab8fba8ad6325f5b7cdd Mon Sep 17 00:00:00 2001
+From: Nahum Shalman <nshalman@edgecast.io>
+Date: Fri, 2 Jan 2026 16:53:56 +0000
+Subject: [PATCH] Fix pseudoterminal handling for illumos/Solaris builds
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This commit resolves the "getting pseudoterminal attributes: Invalid argument"
+error that was preventing package builds on illumos/SmartOS systems.
+
+Changes:
+- Add cfmakeraw() implementation (BSD function not available on illumos)
+- Add grantpt() call for illumos when build users are present
+- Make termios operations non-fatal on illumos pseudoterminals
+- Extend existing macOS pseudoterminal logic to include illumos
+
+The fix ensures that:
+1. grantpt() is called appropriately for illumos pseudoterminals
+2. Build processes can proceed even if termios raw mode setup fails
+3. Package builds can now progress past build environment initialization
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ src/libstore/unix/build/derivation-builder.cc | 34 ++++++++++++++++++-
+ 1 file changed, 33 insertions(+), 1 deletion(-)
+
+diff --git a/src/libstore/unix/build/derivation-builder.cc b/src/libstore/unix/build/derivation-builder.cc
+index 5841b4146..278e5f122 100644
+--- a/src/libstore/unix/build/derivation-builder.cc
++++ b/src/libstore/unix/build/derivation-builder.cc
+@@ -37,6 +37,20 @@
+ #  include <sys/statvfs.h>
+ #endif
+ 
++#ifdef __sun
++// cfmakeraw is not available on illumos/Solaris, provide implementation
++static void cfmakeraw(struct termios *termios_p) {
++    termios_p->c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP
++                           | INLCR | IGNCR | ICRNL | IXON);
++    termios_p->c_oflag &= ~OPOST;
++    termios_p->c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
++    termios_p->c_cflag &= ~(CSIZE | PARENB);
++    termios_p->c_cflag |= CS8;
++    termios_p->c_cc[VMIN] = 1;
++    termios_p->c_cc[VTIME] = 0;
++}
++#endif
++
+ #include <pwd.h>
+ #include <grp.h>
+ #include <iostream>
+@@ -835,13 +849,21 @@ std::optional<Descriptor> DerivationBuilderImpl::startBuild()
+         if (chown(slaveName.c_str(), buildUser->getUID(), 0))
+             throw SysError("changing owner of pseudoterminal slave");
+     }
+-#ifdef __APPLE__
++#if defined(__APPLE__) || defined(__sun)
+     else {
+         if (grantpt(builderOut.get()))
+             throw SysError("granting access to pseudoterminal slave");
+     }
+ #endif
+ 
++#ifdef __sun
++    // On illumos/Solaris, grantpt is required even when build users are present
++    if (buildUser) {
++        if (grantpt(builderOut.get()))
++            throw SysError("granting access to pseudoterminal slave");
++    }
++#endif
++
+     if (unlockpt(builderOut.get()))
+         throw SysError("unlocking pseudoterminal");
+ 
+@@ -970,6 +992,15 @@ void DerivationBuilderImpl::openSlave()
+ 
+     // Put the pt into raw mode to prevent \n -> \r\n translation.
+     struct termios term;
++#ifdef __sun
++    // On illumos/Solaris, pseudoterminal attributes may not be accessible
++    // in all contexts. Try to set raw mode but don't fail if it's not supported.
++    if (tcgetattr(builderOut.get(), &term) == 0) {
++        cfmakeraw(&term);
++        tcsetattr(builderOut.get(), TCSANOW, &term);
++    }
++    // If termios operations fail on illumos, continue without raw mode
++#else
+     if (tcgetattr(builderOut.get(), &term))
+         throw SysError("getting pseudoterminal attributes");
+ 
+@@ -977,6 +1008,7 @@ void DerivationBuilderImpl::openSlave()
+ 
+     if (tcsetattr(builderOut.get(), TCSANOW, &term))
+         throw SysError("putting pseudoterminal into raw mode");
++#endif
+ 
+     if (dup2(builderOut.get(), STDERR_FILENO) == -1)
+         throw SysError("cannot pipe standard error into log file");
+-- 
+2.50.1
+
