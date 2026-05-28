@@ -135,6 +135,22 @@ let
   patches_common = lib.optional (
     stdenv.system == "aarch64-darwin"
   ) ./patches/skip-flaky-darwin-tests.patch;
+
+  # Illumos-support series, extracted from nshalman/nix-src branch
+  # `illumos-support-3.15` (Determinate Nix v3.15.1 with illumos
+  # commits 5a56b3068 through b071304d5). Applies cleanly to NixOS
+  # Nix 2.33.6 in this numbered order.
+  patches_illumos = lib.optionals stdenv.hostPlatform.isIllumos [
+    ./patches/illumos/0001-Apply-essential-illumos-patches-to-Nix-2.33.0.patch
+    ./patches/illumos/0002-Fix-terminal-and-signals-compilation-on-illumos.patch
+    ./patches/illumos/0003-Fix-Boehm-GC-allocator-compatibility-on-illumos.patch
+    ./patches/illumos/0004-Improve-GC-allocator-wrapper-fix-void-specialization.patch
+    ./patches/illumos/0005-Add-illumos-support-for-Boost.Stacktrace.patch
+    ./patches/illumos/0006-Detect-illumos-using-uname-o-and-return-x86_64-illum.patch
+    ./patches/illumos/0007-Fix-garbage-collection-on-illumos.patch
+    ./patches/illumos/0008-Default-to-illumos-for-SunOS-systems-in-sandboxed-bu.patch
+    ./patches/illumos/0009-Fix-pseudoterminal-handling-for-illumos-Solaris-buil.patch
+  ];
 in
 lib.makeExtensible (
   self:
@@ -219,7 +235,7 @@ lib.makeExtensible (
             hash = "sha256-I3A0vFSFg3iI8tGBuQlAy7DzcxYcG39b06rfKOzGRvc=";
           };
         }).appendPatches
-          patches_common;
+          (patches_common ++ patches_illumos);
 
       nix_2_33 = addTests "nix_2_33" self.nixComponents_2_33.nix-everything;
 
