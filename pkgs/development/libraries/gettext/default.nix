@@ -26,6 +26,13 @@ stdenv.mkDerivation rec {
     # https://savannah.gnu.org/bugs/index.php?59658
     ./0001-msginit-Do-not-use-POT-Creation-Date.patch
     ./memory-safety.patch
+  ]
+  # illumos: libtool's global_symbol_pipe detection fails, leaving
+  # export_symbols_cmds expanding to a broken pipeline (`nm ... |  | sed ...`).
+  # Strip -export-symbols-regex from the generated Makefile.in's so libtool
+  # never tries the broken cmd.
+  ++ lib.optionals stdenv.hostPlatform.isIllumos [
+    ./illumos-libtool-fix.patch
   ];
 
   outputs = [
@@ -35,7 +42,7 @@ stdenv.mkDerivation rec {
     "info"
   ];
 
-  LDFLAGS = lib.optionalString stdenv.hostPlatform.isSunOS "-lm -lmd -lmp -luutil -lnvpair -lnsl -lidmap -lavl -lsec";
+  LDFLAGS = lib.optionalString (stdenv.hostPlatform.isSunOS || stdenv.hostPlatform.isIllumos) "-lm -lmd -lmp -luutil -lnvpair -lnsl -lidmap -lavl -lsec";
 
   configureFlags = [
     "--disable-csharp"
@@ -68,6 +75,12 @@ stdenv.mkDerivation rec {
     substituteInPlace gettext-tools/projects/KDE/trigger --replace "/bin/pwd" pwd
     substituteInPlace gettext-tools/projects/GNOME/trigger --replace "/bin/pwd" pwd
     substituteInPlace gettext-tools/src/project-id --replace "/bin/pwd" pwd
+  ''
+  + lib.optionalString stdenv.hostPlatform.isIllumos ''
+    # illumos: system headers declare getlocalename_l() as `const char *`,
+    # gettext's gnulib declares it as `char *` and fails the type check.
+    # Rewrite gettext's declarations to match the system signature.
+    find . -name "*.c" -exec sed -i 's/extern char \* getlocalename_l(/extern const char * getlocalename_l(/g' {} \;
   ''
   + lib.optionalString stdenv.hostPlatform.isCygwin ''
     sed -i -e "s/\(cldr_plurals_LDADD = \)/\\1..\/gnulib-lib\/libxml_rpl.la /" gettext-tools/src/Makefile.in
