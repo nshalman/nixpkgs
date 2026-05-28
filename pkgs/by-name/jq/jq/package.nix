@@ -98,7 +98,9 @@ stdenv.mkDerivation (finalAttrs: {
       "$bin/bin/jq"
   '';
 
-  doInstallCheck = true;
+  # Tests fail on illumos (mantest/jqtest/shtest); same skip applied
+  # on the abandoned illumos-bootstrap-clean branch.
+  doInstallCheck = !stdenv.hostPlatform.isIllumos;
   installCheckTarget = "check";
 
   preInstallCheck = ''
