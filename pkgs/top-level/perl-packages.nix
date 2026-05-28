@@ -9991,7 +9991,11 @@ with self;
       hash = "sha256-Ipe5neCeZwhmQLWQaZ4OmC+0adpjqT/ijcFHgtt6U8g=";
     };
 
-    env = lib.optionalAttrs stdenv.cc.isGNU {
+    # gcc 14 promoted -Wincompatible-pointer-types to a hard error.
+    # The original guard checked stdenv.cc.isGNU, but the illumos-recipe
+    # cc-wrapper doesn't set that flag despite wrapping gcc, so the
+    # workaround was being skipped on illumos. Apply unconditionally.
+    env = {
       NIX_CFLAGS_COMPILE = "-Wno-error=incompatible-pointer-types";
     };
 
@@ -33314,7 +33318,10 @@ with self;
 
     # The t/integration/preload.t test is broken on riscv64
     # https://github.com/Test-More/Test2-Harness/issues/290
-    doCheck = !stdenv.hostPlatform.isRiscV;
+    # On illumos patchShebangs leaves ./scripts/yath unable to start
+    # (its hashbang doesn't survive the rewrite), and the checkPhase
+    # runs that script directly.
+    doCheck = !stdenv.hostPlatform.isRiscV && !stdenv.hostPlatform.isIllumos;
 
     propagatedBuildInputs = [
       DataUUID

@@ -111,7 +111,10 @@ stdenv.mkDerivation (finalAttrs: {
   '';
 
   # https://github.com/libarchive/libarchive/issues/1475
-  doCheck = !stdenv.hostPlatform.isMusl;
+  # On illumos libarchive_test SIGSEGVs in test_compat_zip_4 and the
+  # bsdtar/bsdcpio/bsdcat/bsdunzip wrappers can't locate their built
+  # binaries (autotools install layout difference).
+  doCheck = !stdenv.hostPlatform.isMusl && !stdenv.hostPlatform.isIllumos;
 
   preCheck = ''
     # Need an UTF-8 locale for test_I test.
