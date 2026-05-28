@@ -62,8 +62,9 @@ stdenv.mkDerivation (finalAttrs: {
     "--enable-symlinks"
     "--with-manpage-format=normal"
     "--disable-stripping"
-    "--with-versioned-syms"
   ]
+  # illumos ld doesn't grok GNU-style version scripts.
+  ++ lib.optional (!stdenv.hostPlatform.isIllumos) "--with-versioned-syms"
   ++ lib.optional (!finalAttrs.separateDebugInfo) "--without-debug"
   ++ lib.optional (unicodeSupport && abiVersion == "5") "--enable-widec"
   ++ lib.optional (!unicodeSupport && abiVersion == "6") "--disable-widec"
