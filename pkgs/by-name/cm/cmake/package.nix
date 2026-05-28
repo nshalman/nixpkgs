@@ -124,14 +124,19 @@ stdenv.mkDerivation (finalAttrs: {
     ++ lib.optional cursesUI ncurses
     ++ lib.optional qt5UI qtbase;
 
-  preConfigure = ''
-    substituteInPlace Modules/Platform/UnixPaths.cmake \
-      --subst-var-by libc_bin ${lib.getBin stdenv.cc.libc} \
-      --subst-var-by libc_dev ${lib.getDev stdenv.cc.libc} \
-      --subst-var-by libc_lib ${lib.getLib stdenv.cc.libc}
-    # CC_FOR_BUILD and CXX_FOR_BUILD are used to bootstrap cmake
-    configureFlags="--parallel=''${NIX_BUILD_CORES:-1} CC=$CC_FOR_BUILD CXX=$CXX_FOR_BUILD $configureFlags $cmakeFlags"
-  '';
+  # Skip the libc-path substitution when stdenv.cc.libc is null (illumos uses
+  # the system libc and doesn't materialise a libc derivation).
+  preConfigure =
+    lib.optionalString (stdenv.cc.libc != null) ''
+      substituteInPlace Modules/Platform/UnixPaths.cmake \
+        --subst-var-by libc_bin ${lib.getBin stdenv.cc.libc} \
+        --subst-var-by libc_dev ${lib.getDev stdenv.cc.libc} \
+        --subst-var-by libc_lib ${lib.getLib stdenv.cc.libc}
+    ''
+    + ''
+      # CC_FOR_BUILD and CXX_FOR_BUILD are used to bootstrap cmake
+      configureFlags="--parallel=''${NIX_BUILD_CORES:-1} CC=$CC_FOR_BUILD CXX=$CXX_FOR_BUILD $configureFlags $cmakeFlags"
+    '';
 
   # The configuration script is not autoconf-based, although being similar;
   # triples and other interesting info are passed via CMAKE_* environment
@@ -169,9 +174,24 @@ stdenv.mkDerivation (finalAttrs: {
     # package being built.
     (lib.cmakeFeature "CMAKE_CXX_COMPILER" "${stdenv.cc.targetPrefix}c++")
     (lib.cmakeFeature "CMAKE_C_COMPILER" "${stdenv.cc.targetPrefix}cc")
-    (lib.cmakeFeature "CMAKE_AR" "${lib.getBin stdenv.cc.bintools.bintools}/bin/${stdenv.cc.targetPrefix}ar")
-    (lib.cmakeFeature "CMAKE_RANLIB" "${lib.getBin stdenv.cc.bintools.bintools}/bin/${stdenv.cc.targetPrefix}ranlib")
-    (lib.cmakeFeature "CMAKE_STRIP" "${lib.getBin stdenv.cc.bintools.bintools}/bin/${stdenv.cc.targetPrefix}strip")
+  ]
+  # cc-wrapper in nativeTools=true mode (used by stdenv.illumos-recipe)
+  # leaves bintools.bintools null because the bintools binaries live in
+  # nativePrefix/bin rather than a separate wrapped derivation. Fall back
+  # to bare tool names so cmake resolves them from PATH.
+  ++ (
+    let
+      btPath =
+        if stdenv.cc.bintools.bintools == null
+        then ""
+        else "${lib.getBin stdenv.cc.bintools.bintools}/bin/";
+    in [
+      (lib.cmakeFeature "CMAKE_AR" "${btPath}${stdenv.cc.targetPrefix}ar")
+      (lib.cmakeFeature "CMAKE_RANLIB" "${btPath}${stdenv.cc.targetPrefix}ranlib")
+      (lib.cmakeFeature "CMAKE_STRIP" "${btPath}${stdenv.cc.targetPrefix}strip")
+    ]
+  )
+  ++ [
 
     (lib.cmakeBool "CMAKE_USE_OPENSSL" useOpenSSL)
     (lib.cmakeBool "BUILD_CursesDialog" cursesUI)
