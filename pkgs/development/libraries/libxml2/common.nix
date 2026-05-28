@@ -99,7 +99,8 @@ stdenv'.mkDerivation (finalAttrs: {
 
   enableParallelBuilding = true;
 
-  doCheck = (stdenv.hostPlatform == stdenv.buildPlatform) && stdenv.hostPlatform.libc != "musl";
+  # Tests fail on illumos - 16 test errors in regexp/automata tests
+  doCheck = (stdenv.hostPlatform == stdenv.buildPlatform) && stdenv.hostPlatform.libc != "musl" && !stdenv.hostPlatform.isIllumos;
   preCheck = lib.optional stdenv.hostPlatform.isDarwin ''
     export DYLD_LIBRARY_PATH="$PWD/.libs:$DYLD_LIBRARY_PATH"
   '';

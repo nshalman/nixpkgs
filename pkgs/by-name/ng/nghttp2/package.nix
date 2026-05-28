@@ -6,7 +6,8 @@
   pkg-config,
 
   # Optional dependencies
-  enableApp ? with stdenv.hostPlatform; !isWindows && !isStatic,
+  # nghttpx uses SO_REUSEPORT which doesn't exist on illumos
+  enableApp ? with stdenv.hostPlatform; !isWindows && !isStatic && !isIllumos,
   c-aresMinimal,
   libev,
   openssl,

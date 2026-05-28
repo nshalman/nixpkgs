@@ -71,6 +71,10 @@ stdenv.mkDerivation (finalAttrs: {
     (lib.withFeature pythonSupport "python")
     (lib.optionalString pythonSupport "PYTHON=${python3.pythonOnBuildForHost.interpreter}")
     (lib.withFeature cryptoSupport "crypto")
+  ] ++ lib.optionals stdenv.hostPlatform.isIllumos [
+    # On illumos, libxslt exports debugger symbols even when debugger is disabled,
+    # causing link failures. Enable debugger to provide the missing symbols.
+    "--with-debugger=yes"
   ];
 
   enableParallelBuilding = true;

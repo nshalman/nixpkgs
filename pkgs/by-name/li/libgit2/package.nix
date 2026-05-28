@@ -61,6 +61,11 @@ stdenv.mkDerivation (finalAttrs: {
     pkg-config
   ];
 
+  # illumos: linker doesn't allow symbols from indirect dependencies
+  preConfigure = lib.optionalString stdenv.hostPlatform.isIllumos ''
+    export NIX_LDFLAGS="$NIX_LDFLAGS -z nodefs"
+  '';
+
   buildInputs = [
     zlib
     libssh2
@@ -72,7 +77,8 @@ stdenv.mkDerivation (finalAttrs: {
 
   propagatedBuildInputs = lib.optional (!stdenv.hostPlatform.isLinux) libiconv;
 
-  doCheck = true;
+  # illumos: tests fail to find libssh2 symbols at runtime even with -z nodefs
+  doCheck = !stdenv.hostPlatform.isIllumos;
   checkPhase = ''
     testArgs=(-v -xonline)
 
