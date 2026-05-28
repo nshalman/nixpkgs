@@ -35,7 +35,8 @@ stdenv.mkDerivation rec {
     "-DDOCTEST_WITH_TESTS=OFF"
   ];
 
-  doCheck = true;
+  # illumos: tests compare output against reference files which have platform-specific paths
+  doCheck = !stdenv.hostPlatform.isIllumos;
 
   # Fix the build with LLVM 21 / GCC 15.
   #
