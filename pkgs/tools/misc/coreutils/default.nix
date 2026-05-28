@@ -218,7 +218,7 @@ stdenv.mkDerivation rec {
   enableParallelBuilding = true;
 
   NIX_LDFLAGS = optionalString selinuxSupport "-lsepol";
-  FORCE_UNSAFE_CONFIGURE = optionalString stdenv.hostPlatform.isSunOS "1";
+  FORCE_UNSAFE_CONFIGURE = optionalString (stdenv.hostPlatform.isSunOS || stdenv.hostPlatform.isIllumos) "1";
   env.NIX_CFLAGS_COMPILE = toString (
     [ ]
     # Work around a bogus warning in conjunction with musl.
