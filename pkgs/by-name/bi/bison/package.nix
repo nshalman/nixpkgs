@@ -28,6 +28,17 @@ stdenv.mkDerivation rec {
     "host"
   ];
 
+  # Patch bison's bundled config.sub/config.guess to recognise illumos.
+  # updateAutotoolsGnuConfigScriptsHook would do this, but adding it to
+  # bison's nativeBuildInputs creates an infinite recursion (the hook's
+  # gnu-config dep chain pulls bison back in).
+  postPatch = lib.optionalString stdenv.hostPlatform.isIllumos ''
+    substituteInPlace ./build-aux/config.guess --replace-fail /usr/bin/uname uname
+    substituteInPlace ./build-aux/config.sub \
+      --replace-fail 'hpux* | unos* | osf* | luna* | dgux* | auroraux* | solaris*' \
+                     'hpux* | unos* | osf* | luna* | dgux* | auroraux* | solaris* | illumos*'
+  '';
+
   # there's a /bin/sh shebang in bin/yacc which when no strictDeps is patched with the build stdenv shell
   # however when cross-compiling it would still be patched with the build stdenv shell which would be wrong
   # cannot add bash to buildInputs due to infinite recursion
