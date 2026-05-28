@@ -40,6 +40,15 @@ stdenv.mkDerivation rec {
     "devdoc"
   ];
 
+  # illumos: libtool's symbol extraction detection fails because it expects
+  # underscore-prefixed symbols (BSD-style) but illumos nm doesn't use them.
+  # Set the variable to a working sed command for illumos nm output format.
+  # Also add -z nodefs to allow symbols from implicit dependencies.
+  preConfigure = lib.optionalString stdenv.hostPlatform.isIllumos ''
+    export lt_cv_sys_global_symbol_pipe="sed -n -e 's/^.* [BDRT] \([_A-Za-z][_A-Za-z0-9]*\)$/T \1 \1/p'"
+    export LDFLAGS="$LDFLAGS -Wl,-z,nodefs"
+  '';
+
   propagatedBuildInputs = [ openssl ]; # see Libs: in libssh2.pc
   buildInputs = [ zlib ] ++ lib.optional stdenv.hostPlatform.isMinGW windows.mingw_w64;
 

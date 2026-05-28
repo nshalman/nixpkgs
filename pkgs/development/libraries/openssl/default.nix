@@ -258,7 +258,8 @@ let
 
       enableParallelBuilding = true;
 
-      doCheck = true;
+      # QUIC tests hang/fail on illumos
+      doCheck = !stdenv.hostPlatform.isIllumos;
       preCheck = ''
         patchShebangs util
       '';

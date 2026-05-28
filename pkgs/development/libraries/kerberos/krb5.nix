@@ -124,6 +124,26 @@ stdenv.mkDerivation rec {
   # necessary for FreeBSD code path in configure
   + ''
     substituteInPlace ./config/config.guess --replace-fail /usr/bin/uname uname
+  ''
+  # On illumos, 'sun' is a predefined macro (expands to 1) used for platform
+  # identification. This conflicts with using 'sun' as a variable name in
+  # sockaddr_un-related code.
+  + lib.optionalString stdenv.hostPlatform.isIllumos ''
+    for f in lib/krb5/os/addr.c lib/krb5/os/locate_kdc.c lib/apputils/net-server.c; do
+      sed -i \
+        -e 's/struct sockaddr_un \*sun/struct sockaddr_un *sunaddr/g' \
+        -e 's/struct sockaddr_un sun/struct sockaddr_un sunaddr/g' \
+        -e 's/sun\.sun_/sunaddr.sun_/g' \
+        -e 's/sun->sun_/sunaddr->sun_/g' \
+        -e 's/sizeof(sun)/sizeof(sunaddr)/g' \
+        -e 's/\&sun)/\&sunaddr)/g' \
+        -e 's/\&sun,/\&sunaddr,/g' \
+        "$f"
+    done
+    # illumos linker treats -lkrb5 (libkrb5.so) as different from libkrb5.so.3
+    # (referenced in NEEDED). Disable this check with -z nodefs which allows
+    # undefined symbols at link time (they'll be resolved at runtime).
+    sed -i 's/^CC_LINK=\(.*\)/CC_LINK=\1 -Wl,-z,nodefs/' config/pre.in
   '';
 
   libFolders = [
