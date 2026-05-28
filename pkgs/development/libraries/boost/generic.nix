@@ -398,9 +398,31 @@ stdenv.mkDerivation {
     runHook postInstall
   '';
 
-  postFixup = lib.optionalString stdenv.hostPlatform.isMinGW ''
-    $RANLIB "$out/lib/"*.a
-  '';
+  postFixup =
+    lib.optionalString stdenv.hostPlatform.isMinGW ''
+      $RANLIB "$out/lib/"*.a
+    ''
+    # On illumos, Sun ld records the literal input filename in DT_NEEDED.
+    # b2 passes its in-tree libraries by relative path (bin.v2/libs/...)
+    # while linking shared objects against each other, so every installed
+    # .so ends up with broken NEEDED entries like
+    # "bin.v2/libs/regex/.../libboost_regex.so.1.87.0". Rewrite each to
+    # the bare SONAME the runtime linker expects.
+    + lib.optionalString stdenv.hostPlatform.isIllumos ''
+      shopt -s nullglob
+      for sofile in "$out"/lib/*.so* "$out"/lib/*.so; do
+        [ -L "$sofile" ] && continue
+        while IFS= read -r needed; do
+          case "$needed" in
+            bin.v2/*libboost_*.so*)
+              new=$(basename "$needed")
+              echo "boost: rewriting NEEDED $needed -> $new in $sofile"
+              patchelf --replace-needed "$needed" "$new" "$sofile"
+              ;;
+          esac
+        done < <(patchelf --print-needed "$sofile")
+      done
+    '';
 
   outputs = [
     "out"
