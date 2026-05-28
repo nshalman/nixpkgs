@@ -128,7 +128,7 @@ stdenv.mkDerivation (finalAttrs: {
   ];
 
   # Only the C compiler, and explicitly not C++ compiler needs this flag on solaris:
-  CFLAGS = lib.optionalString stdenv.hostPlatform.isSunOS "-D_XOPEN_SOURCE_EXTENDED";
+  CFLAGS = lib.optionalString (stdenv.hostPlatform.isSunOS || stdenv.hostPlatform.isIllumos) "-D_XOPEN_SOURCE_EXTENDED";
 
   strictDeps = true;
 
@@ -155,6 +155,17 @@ stdenv.mkDerivation (finalAttrs: {
     )
   ''
   + lib.optionalString stdenv.hostPlatform.isSunOS ''
+    sed -i -e '/-D__EXTENSIONS__/ s/-D_XOPEN_SOURCE=\$cf_XOPEN_SOURCE//' \
+           -e '/CPPFLAGS="$CPPFLAGS/s/ -D_XOPEN_SOURCE_EXTENDED//' \
+        configure
+    CFLAGS=-D_XOPEN_SOURCE_EXTENDED
+  ''
+  # illumos: the (solaris2*) host_os case in configure handles
+  # shared-lib build options; without a matching illumos branch, configure
+  # bails with "Shared libraries are not supported in this version".
+  # Rewrite the case patterns to also match illumos*.
+  + lib.optionalString stdenv.hostPlatform.isIllumos ''
+    sed -i -e 's/(solaris2\*)/(illumos*|solaris2*)/g' configure
     sed -i -e '/-D__EXTENSIONS__/ s/-D_XOPEN_SOURCE=\$cf_XOPEN_SOURCE//' \
            -e '/CPPFLAGS="$CPPFLAGS/s/ -D_XOPEN_SOURCE_EXTENDED//' \
         configure
