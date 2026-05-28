@@ -36,6 +36,15 @@ stdenv.mkDerivation {
     runHook postUnpack
   '';
 
+  # illumos isn't in stock config.sub's OS-name list (it only knows
+  # solaris*). Add illumos* as an accepted OS so configure scripts can
+  # validate triples like x86_64-unknown-illumos. We deliberately don't
+  # touch config.guess — keeping it at solaris2.11 preserves backward
+  # compat with packages whose downstream checks key on solaris*.
+  postUnpack = lib.optionalString stdenv.hostPlatform.isIllumos ''
+    sed -i 's/| solaris\* \\/| illumos* | solaris* \\/' ./config.sub
+  '';
+
   # If this isn't set, `pkgs.gnu-config.overrideAttrs( _: { patches
   # = ...; })` will behave very counterintuitively: the (unpatched)
   # gnu-config from the updateAutotoolsGnuConfigScriptsHook stdenv's
