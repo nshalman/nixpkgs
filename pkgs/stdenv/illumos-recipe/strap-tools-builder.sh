@@ -17,14 +17,23 @@ for f in "$gccIllumosLib"/lib/amd64/*; do
 done
 
 # GNU as + GNU binutils from proto-strap (g-prefixed → strip the g).
+# EXCEPT for ld: we want Sun ld (illumos /usr/bin/ld) by default because
+# gcc-illumos was --with-ld=/usr/bin/ld; gcc-driven links go straight to
+# Sun ld regardless of what's in PATH, so making strap-tools/bin/ld also
+# point at Sun ld keeps a single ld used everywhere AND keeps the
+# bintools-wrapper auto-rpath logic working (Sun ld accepts -rpath as a
+# synonym for -R). The GNU gld remains available as `ld.gnu` for code
+# that explicitly wants it.
 ln -s "$protoStrap/usr/gnu/bin/gas" "$out/bin/as"
-for gtool in gaddr2line gar gc++filt gelfedit gld gnm gobjcopy gobjdump granlib greadelf gsize gstrings gstrip; do
+for gtool in gaddr2line gar gc++filt gelfedit gnm gobjcopy gobjdump granlib greadelf gsize gstrings gstrip; do
     target="$protoStrap/usr/gnu/bin/$gtool"
     name="${gtool#g}"
     if [ -e "$target" ]; then
         ln -s "$target" "$out/bin/$name"
     fi
 done
+ln -s /usr/bin/ld "$out/bin/ld"
+[ -e "$protoStrap/usr/gnu/bin/gld" ] && ln -s "$protoStrap/usr/gnu/bin/gld" "$out/bin/ld.gnu"
 [ -e "$protoStrap/usr/gnu/bin/gld.bfd" ] && ln -s "$protoStrap/usr/gnu/bin/gld.bfd" "$out/bin/ld.bfd"
 
 # pkgsrc (GNU-flavored) tools — taken FIRST so that GNU versions win over

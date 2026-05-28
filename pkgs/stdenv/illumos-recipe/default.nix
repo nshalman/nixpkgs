@@ -76,7 +76,7 @@ let
       targetPlatform = localSystem;
 
       preHook = prehookBase;
-      inherit extraNativeBuildInputs;
+      extraNativeBuildInputs = extraNativeBuildInputs ++ [ ./auto-rpath-hook.sh ];
 
       initialPath = extraPath ++ path;
 
