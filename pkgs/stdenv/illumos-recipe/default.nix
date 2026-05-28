@@ -28,6 +28,12 @@ assert localSystem.system == "x86_64-illumos";
 let
   strapTools = import ./strap-tools.nix { };
 
+  # Thin derivation exposing bin/patchelf + a setup-hook that registers
+  # patchELF as a fixupOutputHook. Built once via the Phase-4 patchelf
+  # derivation, then pinned via builtins.storePath so we can plumb it
+  # in without circular deps. See patchelf-pin.nix.
+  patchelfPin = import ./patchelf-pin.nix { };
+
   shell = "${strapTools}/bin/bash";
 
   # PATH for stage 0: just the strap-tools tree. We don't add /usr/bin or
@@ -40,6 +46,12 @@ let
     # Native libc; don't enforce nix-store purity at the linker.
     export NIX_ENFORCE_PURITY=
     export NIX_ENFORCE_NO_NATIVE="''${NIX_ENFORCE_NO_NATIVE-1}"
+
+    # Stop pkg-config from auto-discovering /opt/local/lib/pkgconfig/*.pc
+    # and dragging /opt/local libs (openssl, ncurses, ...) into the
+    # store-path closure. Mirrors the prehookIsolated stanza from the
+    # old multi-stage illumos stdenv. See bd issue nix-blc.
+    export PKG_CONFIG_LIBDIR=""
 
     # illumos has no /usr/bin/make; route the stdenv default through gmake.
     export MAKE=gmake
@@ -79,7 +91,10 @@ let
       targetPlatform = localSystem;
 
       preHook = prehookBase;
-      extraNativeBuildInputs = extraNativeBuildInputs ++ [ ./auto-rpath-hook.sh ];
+      extraNativeBuildInputs = extraNativeBuildInputs ++ [
+        patchelfPin
+        ./auto-rpath-hook.sh
+      ];
 
       initialPath = extraPath ++ path;
 
