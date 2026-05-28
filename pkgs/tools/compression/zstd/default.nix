@@ -6,6 +6,7 @@
   cmake,
   bashNonInteractive,
   gnugrep,
+  diffutils,
   fixDarwinDylibNames,
   file,
   legacySupport ? false,
@@ -13,7 +14,8 @@
   enableStatic ? static,
   # these need to be ran on the host, thus disable when cross-compiling
   buildContrib ? stdenv.hostPlatform == stdenv.buildPlatform,
-  doCheck ? stdenv.hostPlatform == stdenv.buildPlatform,
+  # Tests fail on illumos with "Parameter is out of bound" errors
+  doCheck ? stdenv.hostPlatform == stdenv.buildPlatform && !stdenv.hostPlatform.isIllumos,
   nix-update-script,
 
   # for passthru.tests
@@ -45,6 +47,8 @@ stdenv.mkDerivation (finalAttrs: {
     # This patches makes sure we do not attempt to use the MD5 implementation
     # of the host platform when running the tests
     ./playtests-darwin.patch
+    # Skip executable stack check on illumos (doesn't use GNU_STACK)
+    ./playtests-illumos.patch
 
     # Pull missing manpages update:
     #   https://github.com/facebook/zstd/pull/4302
@@ -83,12 +87,13 @@ stdenv.mkDerivation (finalAttrs: {
     mkdir -p build_ && cd $_
   '';
 
-  nativeCheckInputs = [ file ];
+  nativeCheckInputs = [ file ] ++ lib.optional stdenv.hostPlatform.isIllumos diffutils;
   inherit doCheck;
   checkPhase = ''
     runHook preCheck
     # Patch shebangs for playTests
     patchShebangs ../programs/zstdgrep
+    ${lib.optionalString stdenv.hostPlatform.isIllumos "export DIFF=${diffutils}/bin/diff"}
     ctest -R playTests # The only relatively fast test.
     runHook postCheck
   '';

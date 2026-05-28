@@ -2,6 +2,7 @@
   lib,
   stdenv,
   fetchurl,
+  updateAutotoolsGnuConfigScriptsHook,
 
   # test suite depends on dejagnu which cannot be used during bootstrapping
   # dejagnu also requires tcl which can't be built statically at the moment
@@ -33,6 +34,7 @@ stdenv.mkDerivation (finalAttrs: {
   ];
 
   strictDeps = true;
+  nativeBuildInputs = [ updateAutotoolsGnuConfigScriptsHook ];
   outputs = [
     "out"
     "dev"
@@ -60,7 +62,8 @@ stdenv.mkDerivation (finalAttrs: {
 
   dontStrip = stdenv.hostPlatform != stdenv.buildPlatform; # Don't run the native `strip' when cross-compiling.
 
-  inherit doCheck;
+  # Closure tests fail on illumos - likely due to executable memory restrictions
+  doCheck = doCheck && !stdenv.hostPlatform.isIllumos;
 
   nativeCheckInputs = [ dejagnu ];
 

@@ -39,9 +39,18 @@ stdenv.mkDerivation rec {
     ++ lib.optionals stdenv.hostPlatform.isStatic [
       "-DCARES_SHARED=OFF"
       "-DCARES_STATIC=ON"
+    ]
+    # Tools fail to link on illumos (CRT file multiple inclusion)
+    ++ lib.optionals stdenv.hostPlatform.isIllumos [
+      "-DCARES_BUILD_TOOLS=OFF"
     ];
 
   enableParallelBuilding = true;
+
+  # Tools fail to link on illumos (CRT file multiple inclusion) - autotools fix
+  preBuild = lib.optionalString (!withCMake && stdenv.hostPlatform.isIllumos) ''
+    substituteInPlace src/Makefile --replace-fail "tools" ""
+  '';
 
   passthru.tests = {
     inherit grpc;
