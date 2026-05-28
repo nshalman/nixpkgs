@@ -160,6 +160,12 @@ for f in "$lib"/lib/amd64/*-gdb.py \
          "$lib"/lib/amd64/libubsan.* \
          "$lib"/lib/amd64/libtsan.* \
          "$lib"/lib/amd64/liblsan.* \
-         "$lib"/lib/amd64/libsanitizer.spec; do
+         "$lib"/lib/amd64/libsanitizer.spec \
+         "$lib"/lib/amd64/libcc1.*; do
+    # libcc1 is gcc's plugin-interface shared lib. It was linked by the
+    # host (proto.strap) compiler and inherits its RUNPATH + DWARF
+    # paths, dragging proto-strap into anything that references $lib.
+    # Plugins aren't a runtime concern for compiled programs; keep in
+    # $out where gcc-plugins-using tooling can still find it.
     [ -e "$f" ] && mv "$f" "$out/lib/amd64/"
 done
