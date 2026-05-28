@@ -40,12 +40,17 @@ ln -s /usr/bin/ld "$out/bin/ld"
 # illumos /usr/bin SUS-flavored ones (illumos xargs has no -r, illumos
 # sed has no -i, etc.). nixpkgs setup.sh assumes GNU semantics.
 # Bring in everything pkgsrc ships, except things we already provide
-# from the compiler/binutils above.
-pkgsrc_skip=" gcc g++ cpp cc gcov as ar ld nm objcopy objdump ranlib strip readelf addr2line c++filt elfedit size strings ld.bfd "
+# from the compiler/binutils above, and except *-config helpers (which
+# emit -L/opt/local/lib -Wl,-R/opt/local/lib that contaminate everything
+# downstream — observed in gnugrep + binutils RUNPATH).
+pkgsrc_skip=" gcc g++ cpp cc gcov as ar ld nm objcopy objdump ranlib strip readelf addr2line c++filt elfedit size strings ld.bfd pkg-config "
 for f in /opt/local/bin/*; do
     name="$(basename "$f")"
     case " $pkgsrc_skip " in
         *" $name "*) continue ;;
+    esac
+    case "$name" in
+        *-config) continue ;;
     esac
     [ -e "$out/bin/$name" ] && continue
     ln -s "$f" "$out/bin/$name"
@@ -58,6 +63,7 @@ for g in /opt/local/bin/g*; do
     plain="${plain#g}"
     [ -z "$plain" ] && continue
     case " $pkgsrc_skip " in *" $plain "*) continue ;; esac
+    case "$plain" in *-config) continue ;; esac
     [ -e "$out/bin/$plain" ] && continue
     [ -x "$g" ] && ln -s "$g" "$out/bin/$plain"
 done
