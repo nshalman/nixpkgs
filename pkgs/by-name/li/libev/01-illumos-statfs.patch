@@ -1,0 +1,24 @@
+--- libev-4.33-orig/ev.c	2025-07-11 20:15:07.986072686 +0000
++++ libev-4.33/ev.c	2025-07-11 20:15:35.710729433 +0000
+@@ -4748,6 +4748,13 @@
+ 
+       if (!fs_2625)
+         w->timer.repeat = w->interval ? w->interval : DEF_STAT_INTERVAL;
++#ifdef __sun
++      /* On Solaris/illumos, statfs has a different signature and struct layout */
++      else if (!statfs (w->path, &sfs, sizeof (sfs), 0))
++        /* For simplicity on Solaris, assume all filesystems are local */
++        /* The f_fstyp field exists but filesystem type constants aren't readily available */
++        w->timer.repeat = 0.; /* assume local filesystem */
++#else
+       else if (!statfs (w->path, &sfs)
+                && (sfs.f_type == 0x1373 /* devfs */
+                    || sfs.f_type == 0x4006 /* fat */
+@@ -4762,6 +4769,7 @@
+                    || sfs.f_type == 0x01021994 /* tmpfs */
+                    || sfs.f_type == 0x58465342 /* xfs */))
+         w->timer.repeat = 0.; /* filesystem is local, kernel new enough */
++#endif
+       else
+         w->timer.repeat = w->interval ? w->interval : NFS_STAT_INTERVAL; /* remote, use reduced frequency */
+     }

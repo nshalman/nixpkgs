@@ -1,0 +1,10 @@
+--- a/lib/Makefile.in
++++ b/lib/Makefile.in
+@@ -108,7 +108,7 @@ build_triplet = @build@
+ host_triplet = @host@
+ @HAVE_LD_VERSION_SCRIPT_TRUE@am__append_1 = -Wl,--version-script=$(srcdir)/idn2.map
+-@HAVE_LD_VERSION_SCRIPT_FALSE@am__append_2 = -export-symbols-regex '^(idn2_.*|_idn2_punycode_encode|_idn2_punycode_decode)$$'
++@HAVE_LD_VERSION_SCRIPT_FALSE@am__append_2 = 
+ @HAVE_LD_OUTPUT_DEF_TRUE@am__append_3 = -Wl,--output-def,libidn2-$(DLL_VERSION).def
+ @HAVE_LD_OUTPUT_DEF_TRUE@am__append_4 = $(defexec_DATA)
+ subdir = lib
