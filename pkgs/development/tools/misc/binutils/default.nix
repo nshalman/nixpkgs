@@ -19,7 +19,11 @@ in
 
   enableGold ? withGold stdenv.targetPlatform,
   enableGoldDefault ? false,
-  enableShared ? !stdenv.hostPlatform.isStatic,
+  # illumos's Sun ld rejects non-PIC objects in shared libs ("relocations
+  # remain against allocatable but non-writable sections"). Build static
+  # binutils only — matches what the abandoned illumos-bootstrap-clean
+  # branch did (commit 9073f3711e9c).
+  enableShared ? !stdenv.hostPlatform.isStatic && !stdenv.hostPlatform.isIllumos,
   # WARN: Enabling all targets increases output size to a multiple.
   withAllTargets ? false,
 }:
@@ -128,6 +132,12 @@ stdenv.mkDerivation (finalAttrs: {
     ./CVE-2025-5245.diff
   ];
 
+  # illumos triple translation: binutils' bundled config.sub +
+  # gas/ld/bfd/gold configure.tgt all key on "*-solaris2*". gcc-illumos
+  # already builds with --build/--host/--target=x86_64-pc-solaris2.11
+  # per the SmartOS recipe; we pass the same triple here so a single
+  # default.nix change replaces patching five sub-configure files.
+
   outputs = [
     "out"
     "info"
@@ -211,7 +221,7 @@ stdenv.mkDerivation (finalAttrs: {
     "format"
   ];
 
-  configurePlatforms = [
+  configurePlatforms = lib.optionals (!stdenv.hostPlatform.isIllumos) [
     "build"
     "host"
     "target"
@@ -278,7 +288,12 @@ stdenv.mkDerivation (finalAttrs: {
       # For now we allow this with `--undefined-version`:
       "LDFLAGS=-Wl,--undefined-version"
     ]
-  );
+  )
+  ++ lib.optionals stdenv.hostPlatform.isIllumos [
+    "--build=x86_64-pc-solaris2.11"
+    "--host=x86_64-pc-solaris2.11"
+    "--target=x86_64-pc-solaris2.11"
+  ];
 
   postConfigure = lib.optionalString withAllTargets ''
     for target in ${lib.escapeShellArgs allGasTargets}; do
