@@ -439,6 +439,23 @@ stdenv.mkDerivation (finalAttrs: {
     + optionalString mimetypesSupport ''
       substituteInPlace Lib/mimetypes.py \
         --replace-fail "@mime-types@" "${mailcap}"
+    ''
+    + optionalString stdenv.hostPlatform.isIllumos ''
+      # Fix config.sub to recognize illumos as solaris
+      substituteInPlace config.sub \
+        --replace-fail 'solaris*' 'solaris* | illumos*'
+      # Fix config.guess to recognize illumos (check uname -v for illumos/joyent)
+      substituteInPlace config.guess \
+        --replace-fail 'GUESS=$SUN_ARCH-pc-solaris2$SUN_REL' \
+                      'if echo "$UNAME_VERSION" | grep -q -E "(illumos|joyent)"; then
+                         GUESS=$SUN_ARCH-pc-solaris2.11
+                       else
+                         GUESS=$SUN_ARCH-pc-solaris2$SUN_REL
+                       fi'
+      # Fix socketmodule.c - for illumos, don't declare sethostname (it's already in system headers)
+      substituteInPlace Modules/socketmodule.c \
+        --replace-fail '#if defined(_AIX) || (defined(__sun) && defined(__SVR4) && Py_SUNOS_VERSION <= 510)' \
+                      '#if defined(_AIX)'
     '';
 
   env = {
@@ -459,6 +476,9 @@ stdenv.mkDerivation (finalAttrs: {
   # https://docs.python.org/3/using/configure.html
   configureFlags = [
     "--without-ensurepip"
+  ]
+  ++ optionals stdenv.hostPlatform.isIllumos [
+    "--build=x86_64-pc-solaris2.11"
   ]
   ++ optionals withExpat [
     "--with-system-expat"
@@ -575,6 +595,11 @@ stdenv.mkDerivation (finalAttrs: {
   + optionalString stdenv.hostPlatform.isMusl ''
     export NIX_CFLAGS_COMPILE+=" -DTHREAD_STACK_SIZE=0x100000"
   ''
+  + optionalString stdenv.hostPlatform.isIllumos ''
+    # Fix LDSHARED and BLDSHARED to use gcc for linking shared libraries
+    export LDSHARED="gcc -shared"
+    export BLDSHARED="gcc -shared"
+  ''
   +
 
     # enableNoSemanticInterposition essentially sets that CFLAG -fno-semantic-interposition
@@ -587,6 +612,34 @@ stdenv.mkDerivation (finalAttrs: {
     optionalString enableNoSemanticInterposition ''
       export CFLAGS_NODIST="-fno-semantic-interposition"
     '';
+
+  postConfigure = optionalString stdenv.hostPlatform.isIllumos ''
+    # Fix socket module linking on illumos - add required socket/network libraries
+    # illumos/Solaris requires -lsocket -lnsl for socket functions
+
+    # Python 3.13+ generates Setup.stdlib from Setup.stdlib.in during configure
+    if [ -f Modules/Setup.stdlib ]; then
+      echo "Fixing socket module in Setup.stdlib for illumos..."
+      sed -i '/^#*_socket socketmodule\.c/s/^#*//' Modules/Setup.stdlib
+      sed -i '/^_socket socketmodule\.c/s/$/ -lsocket -lnsl -lresolv/' Modules/Setup.stdlib
+      sed -i 's/_socket socketmodule\.c -lsocket -lnsl.*/_socket socketmodule.c -lsocket -lnsl -lresolv/' Modules/Setup.stdlib
+    fi
+
+    # Also patch the template file
+    if [ -f Modules/Setup.stdlib.in ]; then
+      echo "Fixing socket module in Setup.stdlib.in for illumos..."
+      sed -i '/@MODULE__SOCKET_TRUE@_socket/s/$/ -lsocket -lnsl -lresolv/' Modules/Setup.stdlib.in
+    fi
+
+    # For older Python versions
+    if [ -f Modules/Setup ]; then
+      sed -i '/^#_socket socketmodule.c/s/^#//' Modules/Setup || true
+      sed -i '/^_socket socketmodule.c/s/$/ -lsocket -lnsl -lresolv/' Modules/Setup || true
+    fi
+
+    echo "Socket module configuration:"
+    grep -n "_socket\|socketmodule" Modules/Setup.stdlib 2>/dev/null | head -5 || echo "No socket in Setup.stdlib"
+  '';
 
   setupHook = python-setup-hook sitePackages;
 
@@ -762,8 +815,10 @@ stdenv.mkDerivation (finalAttrs: {
 
   # Enforce that we don't have references to the OpenSSL -dev package, which we
   # explicitly specify in our configure flags above.
+  # On illumos, __FILE__ macros embed include paths in the binary text section
+  # which can't be easily stripped, so skip this check there.
   disallowedReferences =
-    lib.optionals (withOpenssl && !static && !enableFramework) [
+    lib.optionals (withOpenssl && !static && !enableFramework && !stdenv.hostPlatform.isIllumos) [
       openssl.dev
     ]
     ++ lib.optionals (stdenv.hostPlatform != stdenv.buildPlatform) [
