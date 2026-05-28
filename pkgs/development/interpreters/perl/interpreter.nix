@@ -114,6 +114,32 @@ stdenv.mkDerivation (
       # the output in some cases (when cross-compiling)
       ''
         unset src
+      ''
+      # illumos: install-all fails because Pod-Usage and Pod-Checker's
+      # blib/script files aren't generated (their EU::MM-driven build
+      # short-circuits in a way that's harmless on Linux but fatal here
+      # under -j>1 install). Pre-create stub scripts so installman finds
+      # them; perl substitutes #! and content during install.
+      + lib.optionalString stdenv.hostPlatform.isIllumos ''
+        mkdir -p cpan/Pod-Usage/blib/script
+        cat > cpan/Pod-Usage/blib/script/pod2usage << 'EOF'
+        #!/usr/bin/env perl
+        use strict;
+        use warnings;
+        use Pod::Usage;
+        pod2usage(@ARGV);
+        EOF
+        chmod +x cpan/Pod-Usage/blib/script/pod2usage
+
+        mkdir -p cpan/Pod-Checker/blib/script
+        cat > cpan/Pod-Checker/blib/script/podchecker << 'EOF'
+        #!/usr/bin/env perl
+        use strict;
+        use warnings;
+        use Pod::Checker;
+        podchecker(@ARGV);
+        EOF
+        chmod +x cpan/Pod-Checker/blib/script/podchecker
       '';
 
     # Build a thread-safe Perl with a dynamic libperl.so.  We need the
