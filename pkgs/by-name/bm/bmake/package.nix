@@ -67,7 +67,10 @@ stdenv.mkDerivation (finalAttrs: {
 
   strictDeps = true;
 
-  doCheck = true;
+  # bmake's unit-test deptgt-interrupt deliberately raises SIGINT to
+  # validate signal handling; on illumos this propagates to the parent
+  # gmake and stops the test run with "*** Signal 2".
+  doCheck = !stdenv.hostPlatform.isIllumos;
 
   # Make tests work with musl
   # * Disable deptgt-delete_on_error test (alpine does this too)
