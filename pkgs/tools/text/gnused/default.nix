@@ -26,6 +26,13 @@ stdenv.mkDerivation rec {
   ];
   preConfigure = "patchShebangs ./build-aux/help2man";
 
+  # illumos: system <locale.h> declares getlocalename_l() as `const char *`,
+  # gnulib's bundled localename.c declares it as `char *` and fails the type
+  # check. Rewrite to match the system signature.
+  postPatch = lib.optionalString stdenv.hostPlatform.isIllumos ''
+    find . -name "*.c" -exec sed -i 's/extern char \* getlocalename_l(/extern const char * getlocalename_l(/g' {} \;
+  '';
+
   # Prevents attempts of running 'help2man' on cross-built binaries.
   PERL = if stdenv.hostPlatform == stdenv.buildPlatform then null else "missing";
 
