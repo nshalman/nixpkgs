@@ -104,9 +104,14 @@ stdenv.mkDerivation (finalAttrs: {
     `devdoc` is also available, but not listed here, because this attribute is
     not an output of the same derivation that provides `out`, `dev`, etc.
   */
+  # illumos: nix-manual needs mdbook (Rust), no Rust bootstrap for
+  # illumos yet. Drop the doc + man outputs (they're symlinks to
+  # nix-manual; nothing else in this combined package supplies them).
   outputs = [
     "out"
     "dev"
+  ]
+  ++ lib.optionals (!stdenv.hostPlatform.isIllumos) [
     "doc"
     "man"
   ];
@@ -141,7 +146,11 @@ stdenv.mkDerivation (finalAttrs: {
     nix-expr-tests.tests.run
     nix-fetchers-tests.tests.run
     nix-flake-tests.tests.run
-
+  ]
+  # illumos: nix-functional-tests transitively pulls mercurial ->
+  # numpy -> openblas -> hardcoded platform list. Skip until those
+  # deps gain illumos awareness.
+  ++ lib.optionals (!stdenv.hostPlatform.isIllumos) [
     # Make sure the functional tests have passed
     nix-functional-tests
   ]
@@ -175,6 +184,8 @@ stdenv.mkDerivation (finalAttrs: {
         lndir $lib $dev
       done
 
+    ''
+    + lib.optionalString (!stdenv.hostPlatform.isIllumos) ''
       # Forwarded outputs
       ln -sT ${nix-manual} $doc
       ln -sT ${nix-manual.man} $man
