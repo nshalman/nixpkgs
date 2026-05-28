@@ -1,5 +1,6 @@
 # Wrapper around wrapPythonProgramsIn, below. The $pythonPath
 # variable is passed in from the buildPythonPackage function.
+echo "Sourcing wrap-python-hook"
 wrapPythonPrograms() {
     wrapPythonProgramsIn "$out/bin" "$out $pythonPath"
 }
@@ -52,7 +53,7 @@ wrapPythonProgramsIn() {
             # Rewrite "#! .../env python" to "#! /nix/store/.../python".
             # Strip suffix, like "3" or "2.7m" -- we don't have any choice on which
             # Python to use besides one with this hook anyway.
-            if head -n1 "$f" | grep -q '#!.*/env.*\(python\|pypy\)'; then
+            if head -n1 "$f" | grep -Eq '#!.*/env.*(python|pypy)'; then
                 sed -i "$f" -e "1 s^.*/env[ ]*\(python\|pypy\)[^ ]*^#!@executable@^"
             fi
 
@@ -63,7 +64,8 @@ wrapPythonProgramsIn() {
             fi
 
             # catch /python and /.python-wrapped
-            if head -n1 "$f" | grep -q '/\.\?\(python\|pypy\)'; then
+            # Use ERE (-E) for portable alternation - illumos grep doesn't support \| in BRE
+            if head -n1 "$f" | grep -Eq '/\.?(python|pypy)'; then
                 # dont wrap EGG-INFO scripts since they are called from python
                 if echo "$f" | grep -qv EGG-INFO/scripts; then
                     echo "wrapping \`$f'..."
