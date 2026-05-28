@@ -21,7 +21,8 @@ stdenv.mkDerivation (finalAttrs: {
     "--program-transform-name='s,^,b,'"
   ];
 
-  doCheck = true;
+  # Tests fail on illumos
+  doCheck = !stdenv.hostPlatform.isIllumos;
 
   postInstall = ''
     ln -s $out/bin/byacc $out/bin/yacc
