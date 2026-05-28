@@ -80,6 +80,7 @@ import ./default.nix
       loongarch64-unknown-linux-gnu = "be6f676ae2ad80d4242798429915f708e3ecae7c895936c5fee172a4f7f2eec8";
       loongarch64-unknown-linux-musl = "7b071bc98d1e42dd802cc5b5bb83a9467d02ad6621231363519c869d322dcd5f";
       x86_64-unknown-freebsd = "9e231fa573b6bb99654a689687aede2014d4c21ac3c8422534c990c859632f50";
+      x86_64-unknown-illumos = "ee908dfcd965ab3116bb43646ed866e470450508a9a519f29f51ef3ae2e61156";
     };
 
     selectRustPackage = pkgs: pkgs.rust_1_91;
