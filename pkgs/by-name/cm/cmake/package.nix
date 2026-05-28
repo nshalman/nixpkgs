@@ -8,6 +8,7 @@
   curlMinimal,
   expat,
   libarchive,
+  libmd,
   libuv,
   ncurses,
   openssl,
@@ -122,7 +123,11 @@ stdenv.mkDerivation (finalAttrs: {
     ]
     ++ lib.optional useOpenSSL openssl
     ++ lib.optional cursesUI ncurses
-    ++ lib.optional qt5UI qtbase;
+    ++ lib.optional qt5UI qtbase
+    # libarchive's CMakeLists probes for libmd via TRY_COMPILE; illumos
+    # has libmd in /usr/lib but cmake-minimal can't find it without an
+    # explicit input.
+    ++ lib.optional stdenv.hostPlatform.isIllumos libmd;
 
   # Skip the libc-path substitution when stdenv.cc.libc is null (illumos uses
   # the system libc and doesn't materialise a libc derivation).
