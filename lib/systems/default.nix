@@ -154,6 +154,11 @@ let
             null
           else if final.isNone then
             "newlib"
+          else if final.isIllumos || final.isSunOS then
+            # illumos / Solaris ship libc with the system; no
+            # corresponding nixpkgs derivation. Treat as null so
+            # cc-wrapper/bintools-wrapper default to nativeLibc=true.
+            null
           # TODO(@Ericson2314) think more about other operating systems
           else
             "native/impure";
