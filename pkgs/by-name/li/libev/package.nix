@@ -23,6 +23,10 @@ stdenv.mkDerivation rec {
 
   nativeBuildInputs = [ updateAutotoolsGnuConfigScriptsHook ];
 
+  patches = lib.optionals stdenv.hostPlatform.isIllumos [
+    ./01-illumos-statfs.patch
+  ];
+
   configureFlags = lib.optional static "LDFLAGS=-static";
 
   meta = {

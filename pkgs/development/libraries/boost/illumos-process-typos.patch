@@ -1,0 +1,22 @@
+--- a/libs/process/src/ext/cwd.cpp
++++ b/libs/process/src/ext/cwd.cpp
+@@ -119,7 +119,7 @@ filesystem::path cwd(boost::process::v2:
+             filesystem::path("/proc") / std::to_string(pid) / "cwd", ec
+             );
+ #elif defined(__sun)
+-    return fileystem::canonical(
++    return filesystem::canonical(
+             filesystem::path("/proc") / std::to_string(pid) / "path/cwd", ec
+             );
+ #endif
+--- a/libs/process/src/ext/exe.cpp
++++ b/libs/process/src/ext/exe.cpp
+@@ -135,7 +135,7 @@ filesystem::path exe(boost::process::v2:
+             filesystem::path("/proc") / std::to_string(pid) / "exe", ec
+             );
+ #elif defined(__sun)
+-    return fileystem::canonical(
++    return filesystem::canonical(
+             filesystem::path("/proc") / std::to_string(pid) / "path/a.out", ec
+             );
+ #endif

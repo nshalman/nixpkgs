@@ -1,0 +1,35 @@
+--- a/cmake/compilers/GNU.cmake
++++ b/cmake/compilers/GNU.cmake
+@@ -15,6 +15,10 @@
+ if (MINGW)
+     set(TBB_LINK_DEF_FILE_FLAG "")
+     set(TBB_DEF_FILE_PREFIX "")
++elseif (CMAKE_SYSTEM_NAME MATCHES "SunOS|illumos")
++    # illumos linker doesn't support GNU version scripts
++    set(TBB_LINK_DEF_FILE_FLAG "")
++    set(TBB_DEF_FILE_PREFIX "")
+ elseif (APPLE)
+     set(TBB_LINK_DEF_FILE_FLAG -Wl,-exported_symbols_list,)
+     set(TBB_DEF_FILE_PREFIX mac${TBB_ARCH})
+@@ -129,7 +133,7 @@ if (CMAKE_SYSTEM_PROCESSOR MATCHES "(AMD64|amd64|i.86|x86)" AND NOT EMSCRIPTEN)
+ endif ()
+ set(TBB_LIB_COMPILE_FLAGS ${TBB_LIB_COMPILE_FLAGS} $<$<NOT:$<VERSION_LESS:${CMAKE_CXX_COMPILER_VERSION},8.0>>:-fstack-clash-protection>)
+
+-# -z switch is not supported on MacOS and MinGW
+-if (NOT APPLE AND NOT MINGW)
++# -z relro and noexecstack not supported on MacOS, MinGW, and illumos
++if (NOT APPLE AND NOT MINGW AND NOT CMAKE_SYSTEM_NAME MATCHES "SunOS|illumos")
+     set(TBB_LIB_LINK_FLAGS ${TBB_LIB_LINK_FLAGS} -Wl,-z,relro,-z,now,-z,noexecstack)
+ endif()
+--- a/src/tbbmalloc_proxy/CMakeLists.txt
++++ b/src/tbbmalloc_proxy/CMakeLists.txt
+@@ -58,7 +58,8 @@ set_target_properties(tbbmalloc_proxy PROPERTIES
+     VERSION ${TBBMALLOC_BINARY_VERSION}.${TBB_BINARY_MINOR_VERSION}
+     SOVERSION ${TBBMALLOC_BINARY_VERSION})
+
+-if (UNIX AND NOT APPLE)
++# Only use def file if TBB_DEF_FILE_PREFIX is set (empty for MINGW and illumos)
++if (UNIX AND NOT APPLE AND TBB_DEF_FILE_PREFIX)
+     # Avoid use of target_link_libraries here as it changes /DEF option to \DEF on Windows.
+     set_target_properties(tbbmalloc_proxy PROPERTIES
+         LINK_FLAGS "${TBB_LINK_DEF_FILE_FLAG}\"${CMAKE_CURRENT_SOURCE_DIR}/def/${TBB_DEF_FILE_PREFIX}-proxy.def\""
