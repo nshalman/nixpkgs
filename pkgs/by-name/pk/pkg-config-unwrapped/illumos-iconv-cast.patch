@@ -1,0 +1,11 @@
+--- a/glib/glib/gconvert.c	2025-07-20 12:14:28.010287872 +0000
++++ b/glib/glib/gconvert.c	2025-07-20 12:14:43.625453126 +0000
+@@ -302,7 +302,7 @@
+ {
+   iconv_t cd = (iconv_t)converter;
+
+-  return iconv (cd, inbuf, inbytes_left, outbuf, outbytes_left);
++  return iconv (cd, (const char **)inbuf, inbytes_left, outbuf, outbytes_left);
+ }
+
+ /**

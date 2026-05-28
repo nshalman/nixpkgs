@@ -29,7 +29,8 @@ stdenv.mkDerivation rec {
     ./gcc-15.patch
   ]
   ++ lib.optional (!vanilla) ./requires-private.patch
-  ++ lib.optional stdenv.hostPlatform.isCygwin ./2.36.3-not-win32.patch;
+  ++ lib.optional stdenv.hostPlatform.isCygwin ./2.36.3-not-win32.patch
+  ++ lib.optional stdenv.hostPlatform.isIllumos ./illumos-iconv-cast.patch;
 
   # These three tests fail due to a (desired) behavior change from our ./requires-private.patch
   postPatch =
