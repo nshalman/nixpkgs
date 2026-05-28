@@ -118,11 +118,17 @@ stdenv.mkDerivation (finalAttrs: {
 
   strictDeps = true;
 
-  env = lib.optionalAttrs (stdenv.hostPlatform.isDarwin && stdenv.hostPlatform.isStatic) {
-    # Not having this causes curl’s `configure` script to fail with static builds on Darwin because
-    # some of curl’s propagated inputs need libiconv.
-    NIX_LDFLAGS = "-liconv";
-  };
+  env =
+    lib.optionalAttrs (stdenv.hostPlatform.isDarwin && stdenv.hostPlatform.isStatic) {
+      # Not having this causes curl’s `configure` script to fail with static builds on Darwin because
+      # some of curl’s propagated inputs need libiconv.
+      NIX_LDFLAGS = "-liconv";
+    }
+    // lib.optionalAttrs stdenv.hostPlatform.isIllumos {
+      # vquic/vquic.c references CMSG_SPACE / struct msghdr.msg_control,
+      # which are gated behind X/Open + Solaris extensions on illumos.
+      NIX_CFLAGS_COMPILE = "-D_XOPEN_SOURCE=600 -D__EXTENSIONS__";
+    };
 
   nativeBuildInputs = [
     pkg-config
