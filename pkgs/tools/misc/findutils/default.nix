@@ -23,6 +23,12 @@ stdenv.mkDerivation (finalAttrs: {
 
   postPatch = ''
     substituteInPlace xargs/xargs.c --replace 'char default_cmd[] = "echo";' 'char default_cmd[] = "${coreutils}/bin/echo";'
+  ''
+  # illumos: bundled gnulib declares getlocalename_l() returning
+  # `char *`, but the system header declares it returning `const char *`.
+  # Match the system signature to silence the conflicting-types error.
+  + lib.optionalString stdenv.hostPlatform.isIllumos ''
+    find . -name "*.c" -exec sed -i 's/extern char \* getlocalename_l(/extern const char * getlocalename_l(/g' {} \;
   '';
 
   patches = [ ./no-install-statedir.patch ];
@@ -31,9 +37,13 @@ stdenv.mkDerivation (finalAttrs: {
   buildInputs = [ coreutils ]; # bin/updatedb script needs to call sort
 
   # Since glibc-2.25 the i686 tests hang reliably right after test-sleep.
+  # illumos: gnulib SIGNATURE_CHECK macros assert POSIX accept() signature
+  # (last arg socklen_t *); illumos declares it void *. Same class of
+  # gnulib-vs-system divergence already excluding Darwin/FreeBSD.
   doCheck =
     !stdenv.hostPlatform.isDarwin
     && !stdenv.hostPlatform.isFreeBSD
+    && !stdenv.hostPlatform.isIllumos
     && !(stdenv.hostPlatform.libc == "glibc" && stdenv.hostPlatform.isi686)
     && (stdenv.hostPlatform.libc != "musl")
     && stdenv.hostPlatform == stdenv.buildPlatform;
