@@ -1,15 +1,18 @@
-# Stdenv for x86_64-illumos, modeled on the native stdenv pattern.
+# Stdenv for x86_64-illumos. 2-stage chain.
 #
-# Stage 0 wraps the strap-tools tree (gcc-illumos + proto-strap binutils
-# + host /usr/bin + /opt/local) with cc-wrapper and bintools-wrapper in
-# nativeTools mode. This is the "first real stdenv" — it can be used to
-# evaluate stdenv.mkDerivation but its bootstrap inputs are impure
-# (symlinks into /usr/bin and /opt/local). Stage 1 rebuilds against
-# stage-0 packages, narrowing the closure once we have nix-built tools.
+# Stage 0 wraps the strap-tools tree (gcc-illumos + binutils-illumos
+# + host /usr/bin + /opt/local shell utilities) with cc-wrapper and
+# bintools-wrapper in nativeTools mode. This is the "first real
+# stdenv" — it can evaluate stdenv.mkDerivation; its bootstrap inputs
+# are impure (symlinks into /usr/bin and /opt/local for the shell
+# utility tools only). Stage 1 builds the full package set on top.
 #
-# See SMARTOS_RECIPE_ROADMAP.md Phase 2 for the design rationale.
-# Phase 4 will replace the strap-tools host symlinks with a nix-built
-# bootstrap-tools tarball.
+# strap-tools sources its binutils from binutils-illumos (a clean,
+# Phase-4-built /opt/local-free output) rather than proto-strap's
+# pre-baked binaries. proto-strap is still the host for gcc-illumos's
+# initial compile but doesn't appear in strap-tools' bin/ tree.
+#
+# See SMARTOS_RECIPE_ROADMAP.md Phase 4 (steps 11-13).
 {
   lib,
   localSystem,
@@ -105,7 +108,7 @@ in
       };
       stdenvNoCC = stdenv;
 
-      bintools = import ../../build-support/bintools-wrapper {
+      bintoolsRaw = import ../../build-support/bintools-wrapper {
         name = "bintools-illumos-strap";
         inherit lib stdenvNoCC;
         nativePrefix = "${strapTools}";
@@ -115,14 +118,28 @@ in
         expand-response-params = "";
       };
 
-      cc = import ../../build-support/cc-wrapper {
+      ccRaw = import ../../build-support/cc-wrapper {
         name = "cc-illumos-strap";
         nativePrefix = "${strapTools}";
         nativeTools = true;
         nativeLibc = true;
         runtimeShell = shell;
         expand-response-params = "";
-        inherit lib bintools stdenvNoCC;
+        inherit lib stdenvNoCC;
+        bintools = bintoolsRaw;
+      };
+
+      # Lie about nativeTools to downstream wrapCCWith / wrapBintoolsWith
+      # calls — those inherit stdenv.cc.nativeTools and hit the
+      # `nativeTools -> !propagateDoc && nativePrefix != ""` assertion
+      # whenever they re-wrap a real (non-null) cc whose man pages
+      # exist (e.g. nixpkgs' generic gcc-all.nix used by nix's test
+      # deps). Our actual stage-0 cc-wrapper IS nativeTools=true
+      # internally — this is purely a cascade workaround.
+      bintools = bintoolsRaw // { nativeTools = false; };
+      cc = ccRaw // {
+        nativeTools = false;
+        bintools = bintools;
       };
 
       fetchurl = import ../../build-support/fetchurl {
