@@ -52,6 +52,11 @@
   pkgs ? import ../../.. { },
   # Absolute path to a built smartos-live tree.
   smartosLive ? "/workspace/smartos-live",
+  # bash-interactive 5.3p3, pinned to the same store path
+  # make-zone-image.nix uses so root's login shell (substituted into
+  # /etc/passwd below) resolves to the bash this image actually ships.
+  # Update both pins together when bash gets rebuilt.
+  bash ? builtins.storePath /nix/store/b9fi3f6i5ccfyli18bnkgqpq2h2fzrds-bash-interactive-5.3p3,
   system ? "x86_64-illumos",
 }:
 let
@@ -63,17 +68,19 @@ derivation {
   inherit system;
 
   inherit smartosLive;
+  rootShell = "${bash}/bin/bash";
   manifestList = ./zone-root/manifests;
   createSmfRepo = ./zone-root/create-smf-repo.sh;
   builder = "/usr/bin/bash";
   args = [ ./zone-root/builder.sh ];
 
-  # /usr/bin: cp, ed, mkdir, ln, chmod, chown, find, sort, basename
+  # /usr/bin: ed, mkdir, ln, chmod, chown, find, sort, basename
   # xz + gnutar: for the final pack step
-  # rsync: original create-seed uses rsync -av for proto/etc and proto/var
-  #        (preserves symlinks as symlinks; illumos's /usr/bin/cp -R
-  #        follows by default, and the -d flag for symlink-preserve is
-  #        useful but rsync semantics are clearer and proven).
+  # rsync: used for all copy operations across the illumos-recipe
+  #        tooling (consistent with make-bootstrap-tools.nix and
+  #        make-zone-image.nix); preserves modes including exec bits,
+  #        symlinks, and hardlinks without the cp `--no-preserve=mode`
+  #        gotcha that yielded non-executable binaries.
   # gnugrep: not strictly needed for the current builder, but available
   #          if create-smf-repo grows a grep-on-binary case (illumos
   #          /usr/bin/grep is SUSv2-only, no -a).
