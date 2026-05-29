@@ -108,6 +108,13 @@ let
     build-users-group =
     substituters =
     trusted-users = root
+    # Our nix-2.33.6+9 baked in `system = x86_64-sunos` at autoconf time
+    # (illumos uname -s = SunOS, lowercased). nixpkgs has no
+    # "x86_64-sunos" platform — it uses "x86_64-illumos" (or
+    # "x86_64-solaris"). Override here so builtins.currentSystem and
+    # default eval-system pick the right value.
+    system = x86_64-illumos
+    extra-platforms = x86_64-illumos x86_64-sunos
   '' + lib.optionalString shipNixpkgs ''
     # Default NIX_PATH so `<nixpkgs>` resolves out of the box. Users
     # can override per-session via NIX_PATH=... or by replacing the
