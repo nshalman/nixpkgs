@@ -1,0 +1,17 @@
+Fix iconv const char** signature on illumos.
+
+GNU libiconv uses 'const char **' for the input buffer parameter,
+while POSIX uses 'char **'. This causes a compile error on illumos
+which uses GNU libiconv.
+
+--- a/src/poptint.c
++++ b/src/poptint.c
+@@ -99,7 +99,7 @@ strdup_locale_from_utf8 (char * istr)
+ 	err = iconv(cd, NULL, NULL, NULL, NULL);
+ 	while (1) {
+ 	    *pout = '\0';
+-	    err = iconv(cd, &pin, &ib, &pout, &ob);
++	    err = iconv(cd, (const char **)&pin, &ib, &pout, &ob);
+ 	    if (err != (size_t)-1) {
+ 		if (shift_pin == NULL) {
+ 		    shift_pin = pin;
