@@ -398,39 +398,47 @@ stdenv.mkDerivation {
     runHook postInstall
   '';
 
-  postFixup =
-    lib.optionalString stdenv.hostPlatform.isMinGW ''
-      $RANLIB "$out/lib/"*.a
-    ''
-    # On illumos, Sun ld records the literal input filename in DT_NEEDED.
-    # b2 passes its in-tree libraries by relative path (bin.v2/libs/...)
-    # while linking shared objects against each other, so every installed
-    # .so ends up with broken NEEDED entries like
-    # "bin.v2/libs/regex/.../libboost_regex.so.1.87.0". Rewrite each to
-    # the bare SONAME the runtime linker expects.
-    #
-    # patchelf 0.15.2's --replace-needed assumes a GNU .gnu.version_r
-    # section and fails on illumos ELF (which uses .SUNW_verneed). Use
-    # the illumos-native /usr/bin/elfedit instead. See bd nix-gfv.
-    + lib.optionalString stdenv.hostPlatform.isIllumos ''
-      shopt -s nullglob
-      for sofile in "$out"/lib/*.so*; do
-        [ -L "$sofile" ] && continue
-        [ -f "$sofile" ] || continue
-        # dyn:dump emits one line per dynamic entry; NEEDED rows look like
-        #     [N]  NEEDED            0xHHHH              <path>
-        # Index N is the absolute dynamic-section index, which is what
-        # `dyn:value -s -dynndx` expects.
-        /usr/bin/elfedit -r -e 'dyn:dump' "$sofile" 2>/dev/null \
-          | awk '$2 == "NEEDED" && $4 ~ /^bin\.v2\// {
-              idx = $1; gsub(/[][]/, "", idx);
-              n = split($4, parts, "/");
-              printf "%s %s\n", idx, parts[n];
-            }' \
-          | while read -r idx newname; do
-              echo "boost: rewriting NEEDED[$idx] -> $newname in $(basename "$sofile")"
-              /usr/bin/elfedit -e "dyn:value -s -dynndx $idx $newname" "$sofile"
-            done
+  # On illumos, Sun ld records the literal input filename in DT_NEEDED.
+  # b2 passes its in-tree libraries by relative path (bin.v2/libs/...)
+  # while linking shared objects against each other, so every installed
+  # .so ends up with broken NEEDED entries like
+  # "bin.v2/libs/regex/.../libboost_regex.so.1.87.0". Rewrite each to
+  # the bare SONAME the runtime linker expects.
+  #
+  # Must run in preFixup, NOT postFixup: patchelf's --shrink-rpath
+  # (registered as a fixupOutputHook by the stdenv) walks RUNPATH
+  # looking for each NEEDED entry's filename. If we leave the bin.v2/...
+  # paths in place, patchelf finds none of them and strips boost's own
+  # lib directory from RUNPATH, leaving the .so files unable to locate
+  # each other at runtime even after we rewrite NEEDED.
+  #
+  # patchelf 0.15.2's --replace-needed assumes a GNU .gnu.version_r
+  # section and fails on illumos ELF (which uses .SUNW_verneed). Use
+  # the illumos-native /usr/bin/elfedit instead. See bd nix-gfv.
+  preFixup = lib.optionalString stdenv.hostPlatform.isIllumos ''
+    shopt -s nullglob
+    for sofile in "$out"/lib/*.so*; do
+      [ -L "$sofile" ] && continue
+      [ -f "$sofile" ] || continue
+      # dyn:dump emits one line per dynamic entry; NEEDED rows look like
+      #     [N]  NEEDED            0xHHHH              <path>
+      # Index N is the absolute dynamic-section index, which is what
+      # `dyn:value -s -dynndx` expects.
+      /usr/bin/elfedit -r -e 'dyn:dump' "$sofile" 2>/dev/null \
+        | awk '$2 == "NEEDED" && $4 ~ /^bin\.v2\// {
+            idx = $1; gsub(/[][]/, "", idx);
+            n = split($4, parts, "/");
+            printf "%s %s\n", idx, parts[n];
+          }' \
+        | while read -r idx newname; do
+            echo "boost: rewriting NEEDED[$idx] -> $newname in $(basename "$sofile")"
+            /usr/bin/elfedit -e "dyn:value -s -dynndx $idx $newname" "$sofile"
+          done
+    done
+  '';
+
+  postFixup = lib.optionalString stdenv.hostPlatform.isMinGW ''
+    $RANLIB "$out/lib/"*.a
       done
     '';
 
