@@ -128,6 +128,10 @@ let
             && !stdenv.hostPlatform.isStatic
             # LTO breaks exception handling on x86-64-darwin.
             && stdenv.system != "x86_64-darwin"
+            # gcc-illumos 14.2.0 ICEs in lto-partition.cc when linking
+            # libnixstore.so. Disable LTO until the underlying gcc bug
+            # is investigated.
+            && !stdenv.hostPlatform.isIllumos
           )
           ''
             case "$mesonBuildType" in
