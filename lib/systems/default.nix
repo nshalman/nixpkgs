@@ -216,6 +216,11 @@ let
               netbsd = "NetBSD";
               freebsd = "FreeBSD";
               openbsd = "OpenBSD";
+              # illumos and solaris both report "SunOS" from uname(1)
+              # (the kernel name has been "SunOS" since SunOS 1.0; the
+              # OS-distribution name "Solaris" was layered on top later).
+              solaris = "SunOS";
+              illumos = "SunOS";
               wasi = "Wasi";
               redox = "Redox";
               genode = "Genode";
