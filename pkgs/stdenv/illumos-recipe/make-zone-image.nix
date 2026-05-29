@@ -37,9 +37,15 @@
   nix ? pkgs.nixVersions.nix_2_33.out,
   bash ? pkgs.bashInteractive,
   # Additional packages (or store paths) to expose via the system env.
-  # Default: coreutils + rsync so the merged bin/ has the usual GNU
-  # userland alongside bash/nix.
-  extraRootPaths ? [ pkgs.coreutils pkgs.rsync ],
+  # Default: coreutils + rsync + gitMinimal so the merged bin/ has the
+  # usual GNU userland alongside bash/nix, and so users can `git clone`
+  # a nixpkgs tree to drive their own rebuilds without first needing
+  # to bootstrap a git binary.
+  extraRootPaths ? [
+    pkgs.coreutils
+    pkgs.rsync
+    pkgs.gitMinimal
+  ],
   # Ship a copy of this nixpkgs tree at /etc/nixos/nixpkgs and set the
   # default nix-path so `<nixpkgs>` resolves out of the box. Default
   # off because the snapshot's hash invalidates on any tree edit (so
