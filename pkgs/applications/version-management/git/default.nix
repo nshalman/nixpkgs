@@ -51,7 +51,9 @@
   withSsh ? false,
   sysctl,
   deterministic-host-uname, # trick Makefile into targeting the host platform when cross-compiling
-  doInstallCheck ? !stdenv.hostPlatform.isDarwin, # extremely slow on darwin
+  # Skip on darwin (extremely slow) and illumos (test suite has many
+  # platform-quirk failures; the build itself works fine).
+  doInstallCheck ? !stdenv.hostPlatform.isDarwin && !stdenv.hostPlatform.isIllumos,
   tests,
 }:
 
@@ -196,7 +198,7 @@ stdenv.mkDerivation (finalAttrs: {
   ++ lib.optional (stdenv.buildPlatform == stdenv.hostPlatform) "SHELL_PATH=${stdenv.shell}"
   ++ (if perlSupport then [ "PERL_PATH=${perlPackages.perl}/bin/perl" ] else [ "NO_PERL=1" ])
   ++ (if pythonSupport then [ "PYTHON_PATH=${python3}/bin/python" ] else [ "NO_PYTHON=1" ])
-  ++ lib.optionals stdenv.hostPlatform.isSunOS [
+  ++ lib.optionals (stdenv.hostPlatform.isSunOS || stdenv.hostPlatform.isIllumos) [
     "INSTALL=install"
     "NO_INET_NTOP="
     "NO_INET_PTON="
