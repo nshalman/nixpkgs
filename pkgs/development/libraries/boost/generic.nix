@@ -408,19 +408,29 @@ stdenv.mkDerivation {
     # .so ends up with broken NEEDED entries like
     # "bin.v2/libs/regex/.../libboost_regex.so.1.87.0". Rewrite each to
     # the bare SONAME the runtime linker expects.
+    #
+    # patchelf 0.15.2's --replace-needed assumes a GNU .gnu.version_r
+    # section and fails on illumos ELF (which uses .SUNW_verneed). Use
+    # the illumos-native /usr/bin/elfedit instead. See bd nix-gfv.
     + lib.optionalString stdenv.hostPlatform.isIllumos ''
       shopt -s nullglob
-      for sofile in "$out"/lib/*.so* "$out"/lib/*.so; do
+      for sofile in "$out"/lib/*.so*; do
         [ -L "$sofile" ] && continue
-        while IFS= read -r needed; do
-          case "$needed" in
-            bin.v2/*libboost_*.so*)
-              new=$(basename "$needed")
-              echo "boost: rewriting NEEDED $needed -> $new in $sofile"
-              patchelf --replace-needed "$needed" "$new" "$sofile"
-              ;;
-          esac
-        done < <(patchelf --print-needed "$sofile")
+        [ -f "$sofile" ] || continue
+        # dyn:dump emits one line per dynamic entry; NEEDED rows look like
+        #     [N]  NEEDED            0xHHHH              <path>
+        # Index N is the absolute dynamic-section index, which is what
+        # `dyn:value -s -dynndx` expects.
+        /usr/bin/elfedit -r -e 'dyn:dump' "$sofile" 2>/dev/null \
+          | awk '$2 == "NEEDED" && $4 ~ /^bin\.v2\// {
+              idx = $1; gsub(/[][]/, "", idx);
+              n = split($4, parts, "/");
+              printf "%s %s\n", idx, parts[n];
+            }' \
+          | while read -r idx newname; do
+              echo "boost: rewriting NEEDED[$idx] -> $newname in $(basename "$sofile")"
+              /usr/bin/elfedit -e "dyn:value -s -dynndx $idx $newname" "$sofile"
+            done
       done
     '';
 
