@@ -37,14 +37,16 @@
   nix ? pkgs.nixVersions.nix_2_33.out,
   bash ? pkgs.bashInteractive,
   # Additional packages (or store paths) to expose via the system env.
-  # Default: coreutils + rsync + gitMinimal so the merged bin/ has the
-  # usual GNU userland alongside bash/nix, and so users can `git clone`
-  # a nixpkgs tree to drive their own rebuilds without first needing
-  # to bootstrap a git binary.
+  # Default set:
+  #   coreutils + rsync + gitMinimal — usual GNU userland alongside
+  #     bash/nix, plus git so users can `git clone` a nixpkgs tree.
+  #   cacert — Mozilla CA bundle at $out/etc/ssl/certs/ca-bundle.crt;
+  #     zone-root/builder.sh wires /etc/ssl/certs symlinks to it.
   extraRootPaths ? [
     pkgs.coreutils
     pkgs.rsync
     pkgs.gitMinimal
+    pkgs.cacert
   ],
   # Ship a copy of this nixpkgs tree at /etc/nixos/nixpkgs and set the
   # default nix-path so `<nixpkgs>` resolves out of the box. Default

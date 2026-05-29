@@ -39,6 +39,16 @@ if [ -d /nix/var/nix/profiles/default/share/man ]; then
 fi
 export PATH
 
+# CA bundle from pkgs.cacert (shipped via the system profile). The
+# /etc/ssl/certs/ca-{bundle,certificates}.crt symlinks zone-root/
+# builder.sh creates handle apps that hardcode the standard paths;
+# these env vars handle the rest (nix's fetchurl, language SDKs, ...).
+if [ -r /etc/ssl/certs/ca-bundle.crt ]; then
+    SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+    NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+    export SSL_CERT_FILE NIX_SSL_CERT_FILE
+fi
+
 # Source /etc/profile.d/*.sh for drop-in extensions.
 if [ -d /etc/profile.d ]; then
     for f in /etc/profile.d/*.sh; do

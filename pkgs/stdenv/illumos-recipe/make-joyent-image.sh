@@ -49,6 +49,12 @@ VERSION=""
 DESCRIPTION="Nix-on-illumos zone"
 OUT_DIR=""
 KEEP_DATASET=0
+# Path to a GNU tar. Required because illumos /usr/bin/tar can't
+# unpack archives that use the @LongLink extension for paths > 100
+# chars (which nix-store's deeply-nested store paths frequently
+# trigger). Defaults to whatever `tar` is on PATH, but the .nix
+# wrapper passes the explicit nix-built gnutar to be safe.
+GTAR="tar"
 
 usage() {
     sed -n '2,$p' "$0" | sed -n '/^# Usage:/,/^# First-boot/p' | sed 's/^# //;s/^#$//'
@@ -64,6 +70,7 @@ while [[ $# -gt 0 ]]; do
         --version)         VERSION="$2";        shift 2 ;;
         --description)     DESCRIPTION="$2";    shift 2 ;;
         --out-dir)         OUT_DIR="$2";        shift 2 ;;
+        --gtar)            GTAR="$2";           shift 2 ;;
         --keep-dataset)    KEEP_DATASET=1;      shift ;;
         -h|--help)         usage 0 ;;
         *) echo "unknown arg: $1" >&2; usage ;;
@@ -84,7 +91,7 @@ done
 
 command -v zfs   >/dev/null 2>&1 || { echo "zfs not on PATH" >&2; exit 1; }
 command -v gzip  >/dev/null 2>&1 || { echo "gzip not on PATH" >&2; exit 1; }
-command -v tar   >/dev/null 2>&1 || { echo "tar not on PATH" >&2; exit 1; }
+command -v "$GTAR" >/dev/null 2>&1 || { echo "tar not found: $GTAR" >&2; exit 1; }
 
 # uuid generator: prefer `uuidgen` if present; fall back to /proc/sys
 # or a python one-liner; illumos has uuidgen via libuuid in /usr/bin.
@@ -126,9 +133,9 @@ mkdir -p "$ROOT"
 # zone-root's /etc/ doesn't ship a /etc/nix/ subtree, so the
 # nix.conf from zone-image survives.
 echo "unpacking zone-image into $ROOT ..."
-xz -dc "$ZONE_IMAGE" | tar xf - -C "$ROOT"
+xz -dc "$ZONE_IMAGE" | "$GTAR" xf - -C "$ROOT"
 echo "unpacking zone-root into $ROOT ..."
-xz -dc "$ZONE_ROOT"  | tar xf - -C "$ROOT"
+xz -dc "$ZONE_ROOT"  | "$GTAR" xf - -C "$ROOT"
 
 # --- 2. Pre-populate /nix/var/nix/db/db.sqlite -------------------------------
 # Use the image's *own* nix-store binary (pointed at by
