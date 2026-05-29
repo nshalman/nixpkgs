@@ -25,7 +25,7 @@
 }:
 let
   inherit (pkgs) runCommand closureInfo lib;
-  inherit (pkgs.buildPackages) dumpnar;
+  inherit (pkgs.buildPackages) dumpnar rsync;
 
   # gcc-illumos isn't wired into all-packages.nix yet; import directly.
   # Should match what pkgs/stdenv/illumos-recipe uses so the closures
@@ -49,15 +49,18 @@ let
   # DT_RUNPATH (pre-baked by SmartOS's pkgsrc-binutils build).
   binutils-illumos = builtins.storePath /nix/store/chjhxnwkp22s1nr2x9w8wdmmi1w9f0w7-binutils-2.44;
 
-  # We don't use rsync here (it transitively wants cmake-minimal, which
-  # tries to read stdenv.cc.bintools.bintools — null in nativeTools mode).
-  # Plain `cp -a` + `chmod -R +w` is enough to flatten store paths.
+  # Use rsync for the closure copy, consistent with make-zone-image.nix
+  # and make-zone-root.nix. rsync -a preserves modes (including the
+  # exec bit on binaries) without the cp `--no-preserve=mode` gotcha
+  # that would otherwise strip exec bits and yield non-executable
+  # binaries after nix's post-build read-only canonicalization.
   pack-all =
     packCmd: name: packages: fixups:
     (runCommand name
       {
         nativeBuildInputs = [
           dumpnar
+          rsync
         ];
       }
       ''
@@ -65,7 +68,7 @@ let
         requisites="$(cat ${closureInfo { rootPaths = packages; }}/store-paths)"
 
         for f in $requisites; do
-          cp -aHR --no-preserve=mode "$f/." "$base/"
+          rsync -a "$f/" "$base/"
         done
         chmod -R +w "$base"
         cd $base

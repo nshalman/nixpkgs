@@ -7,7 +7,7 @@
 #   $createSmfRepo   path to the create-smf-repo.sh helper
 #   $xzPath          nix-built xz
 #   $gnutarPath      nix-built gnutar
-#   $rsyncPath       nix-built rsync
+#   $rsyncPath       nix-built rsync (used for proto/etc + proto/var copy)
 #   $gnugrepPath     nix-built gnugrep (used by create-smf-repo if needed)
 #
 # Adapted from MNX Cloud's imagetools/create-seed
@@ -59,6 +59,34 @@ if [ -f "$root/etc/profile" ]; then
     ed -s "$root/etc/profile" <<'EOF' || true
 /bin.i386/
 s,/bin/i386,[ `uname -p` = "i386" ],
+w
+q
+EOF
+fi
+
+# Root shadow: proto/etc ships `root::...` (empty password), which
+# pam_authtok_get rejects with "empty password not allowed". Stock
+# SmartOS uses `NP` ("no password required"), which lets `zlogin
+# <uuid>` (without -S) drop straight to a root shell from the global
+# zone. Substitute on the leading field only.
+if [ -f "$root/etc/shadow" ]; then
+    ed -s "$root/etc/shadow" <<'EOF' || true
+/^root::/
+s,^root::,root:NP:,
+w
+q
+EOF
+fi
+
+# Root shell: proto/etc/passwd sets it to /usr/bin/bash which lives in
+# the GZ-bind-mounted /usr inside a joyent zone. Switch to the
+# nix-shipped bash so root's interactive shell exercises our toolchain.
+# $rootShell is an absolute /nix/store/.../bin/bash; the zone-image
+# tarball lays that store path down before the zone boots.
+if [ -f "$root/etc/passwd" ]; then
+    ed -s "$root/etc/passwd" <<EOF || true
+/^root:/
+s,:/usr/bin/bash$,:${rootShell},
 w
 q
 EOF

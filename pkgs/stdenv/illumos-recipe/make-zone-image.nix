@@ -33,12 +33,19 @@
   # — pkgs.nix in this nixpkgs branch is 2.31.5 and won't compile on
   # illumos without further patches.
   nix ? builtins.storePath /nix/store/1x7hzfrph24yzm47pr5xk5gs5gi9h9c5-nix-2.33.6+9,
+  # bash-interactive 5.3p3 built against this stdenv. Pinned so we ship
+  # bash in the image without dragging in pkgs.bashInteractive (which
+  # may evaluate to a not-yet-built variant).
+  bash ? builtins.storePath /nix/store/b9fi3f6i5ccfyli18bnkgqpq2h2fzrds-bash-interactive-5.3p3,
+  # Additional store paths to bundle. The closure-walker pulls in their
+  # runtime dependencies automatically.
+  extraRootPaths ? [ ],
 }:
 let
   inherit (pkgs) runCommand closureInfo writeText lib;
-  inherit (pkgs.buildPackages) xz gnutar;
+  inherit (pkgs.buildPackages) xz gnutar rsync;
 
-  closure = closureInfo { rootPaths = [ nix ]; };
+  closure = closureInfo { rootPaths = [ nix bash ] ++ extraRootPaths; };
 
   nixConf = writeText "nix.conf" ''
     experimental-features = nix-command flakes
@@ -51,13 +58,17 @@ in
 rec {
   # The on-disk staging tree, as a regular derivation we can inspect.
   # Useful for debugging without pinging the tar+xz step.
-  zone-tree = runCommand "nix-zone-tree" { } ''
+  zone-tree = runCommand "nix-zone-tree" { nativeBuildInputs = [ rsync ]; } ''
     mkdir -p $out/nix/store $out/nix/var/nix/profiles $out/etc/nix
 
-    # Copy every store path in nix's runtime closure. --no-preserve=mode
-    # so chmod -R works afterwards (store paths are r-x by default).
+    # Copy every store path in the closure. rsync -a preserves modes
+    # (including the exec bit on binaries) without the cp
+    # `--no-preserve=mode` gotcha that would otherwise yield 444 across
+    # the board after nix's post-build read-only canonicalization.
+    # `chmod -R u+w` adds write so the tree is mutable for the rest of
+    # this builder; nix strips it back to 555/444 after exit.
     for p in $(cat ${closure}/store-paths); do
-      cp -aHR --no-preserve=mode "$p" $out/nix/store/
+      rsync -a "$p" $out/nix/store/
     done
     chmod -R u+w $out/nix/store
 
