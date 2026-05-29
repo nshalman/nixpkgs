@@ -34,8 +34,8 @@ index 37f148cbc..f4ff54f36 100644
  
 +static std::string quoteRegexChars(const std::string & raw)
 +{
-+    static auto specialRegex = std::regex(R"([.^$\\*+?()\[\]{}|])");
-+    return std::regex_replace(raw, specialRegex, R"(\$&)");
++    static auto specialRegex = boost::regex(R"([.^$\\*+?()\[\]{}|])");
++    return boost::regex_replace(raw, specialRegex, R"(\$&)");
 +}
 +
 +#ifndef __sun
@@ -54,7 +54,7 @@ index 37f148cbc..f4ff54f36 100644
  {
 -    static auto specialRegex = boost::regex(R"([.^$\\*+?()\[\]{}|])");
 -    return boost::regex_replace(raw, specialRegex, R"(\$&)");
-+    auto storePathRegex = std::regex(quoteRegexChars(storeDir) + R"(/[0-9a-z]+[0-9a-zA-Z\+\-\._\?=]*)");
++    auto storePathRegex = boost::regex(quoteRegexChars(storeDir) + R"(/[0-9a-z]+[0-9a-zA-Z\+\-\._\?=]*)");
 +
 +    // Use pwdx to get current working directory
 +    try {
@@ -98,8 +98,8 @@ index 37f148cbc..f4ff54f36 100644
 +    // Use penv to scan environment variables for store paths
 +    try {
 +        auto penvOutput = runProgram("penv", true, { pid });
-+        auto env_end = std::sregex_iterator{};
-+        for (auto i = std::sregex_iterator(penvOutput.begin(), penvOutput.end(), storePathRegex); i != env_end; ++i)
++        auto env_end = boost::sregex_iterator{};
++        for (auto i = boost::sregex_iterator(penvOutput.begin(), penvOutput.end(), storePathRegex); i != env_end; ++i)
 +            unchecked[i->str()].emplace(fmt("penv:%s", pid));
 +    } catch (ExecError & e) {
 +        // Process may have exited or no permissions, ignore
