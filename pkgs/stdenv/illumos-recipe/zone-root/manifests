@@ -70,7 +70,7 @@ network/nfs/mapid.xml		disabled
 network/nfs/status.xml		disabled
 # network/ipmievd.xml
 network/nis/client.xml		disabled
-network/rpc/rex.xml		disabled
+# network/rpc/rex.xml removed from modern illumos
 # network/http-apache22.xml
 # system/consolekit.xml
 # system/device/devices-audio.xml
@@ -183,7 +183,7 @@ system/rmtmpfiles.xml		enabled
 system/sar.xml			disabled
 system/svc/global.xml		disabled
 system/svc/restarter.xml	enabled
-system/sysidtool.xml		disabled
+# system/sysidtool.xml removed from modern illumos
 system/system-log.xml		enabled
 system/utmp.xml			enabled
 system/vtdaemon.xml		disabled
