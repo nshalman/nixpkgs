@@ -9,6 +9,8 @@
 #   $gnutarPath      nix-built gnutar
 #   $rsyncPath       nix-built rsync (used for proto/etc + proto/var copy)
 #   $gnugrepPath     nix-built gnugrep (used by create-smf-repo if needed)
+#   $profileFile     /etc/profile to lay down (overwrites proto's)
+#   $systemNix       system.nix template installed at /etc/nixos/system.nix
 #
 # Adapted from MNX Cloud's imagetools/create-seed
 # (https://github.com/MNX-Cloud/imagetools). The pkgsrc-specific user
@@ -46,23 +48,25 @@ for dir in etc var; do
     "$rsync" -a "$smartosLive/proto/$dir" "$root/"
 done
 
-# --- 3. Cleanups + /etc/profile fix ------------------------------------------
+# --- 3. Cleanups ---------------------------------------------------------------
 # Remove legacy SMF startup rc2.d scripts (SMF replaces them anyway).
 # Remove /etc/issue (set by zone tooling at provision time).
 # Remove SDC-specific root crontab (we don't run SDC tooling).
-# Fix the /bin/i386 check in /etc/profile (the path doesn't exist on a
-# clean illumos; substitute a uname check).
 rm -f "$root/etc/rc2.d"/S*
 rm -f "$root/etc/issue"
 rm -f "$root/etc/cron.d/crontabs/root"
-if [ -f "$root/etc/profile" ]; then
-    ed -s "$root/etc/profile" <<'EOF' || true
-/bin.i386/
-s,/bin/i386,[ `uname -p` = "i386" ],
-w
-q
-EOF
-fi
+
+# /etc/profile: overwrite proto's with our nix-aware version. (See
+# zone-root/profile for content.) We own this file rather than patching
+# proto's because the patches needed are large enough that owning is
+# cleaner — and matches NixOS's convention of generating /etc/profile.
+install -m 0644 "$profileFile" "$root/etc/profile"
+
+# /etc/nixos/system.nix: editable equivalent of NixOS's configuration.nix.
+# Documented at the top of the file; tl;dr `nix-build /etc/nixos/system.nix
+# -o /nix/var/nix/profiles/default` to rebuild and swap the system profile.
+mkdir -p "$root/etc/nixos"
+install -m 0644 "$systemNix" "$root/etc/nixos/system.nix"
 
 # Root shadow: proto/etc ships `root::...` (empty password), which
 # pam_authtok_get rejects with "empty password not allowed". Stock
@@ -79,14 +83,13 @@ EOF
 fi
 
 # Root shell: proto/etc/passwd sets it to /usr/bin/bash which lives in
-# the GZ-bind-mounted /usr inside a joyent zone. Switch to the
-# nix-shipped bash so root's interactive shell exercises our toolchain.
-# $rootShell is an absolute /nix/store/.../bin/bash; the zone-image
-# tarball lays that store path down before the zone boots.
+# the GZ-bind-mounted /usr inside a joyent zone. Switch to the bash
+# under the nix system profile — a stable indirection that survives
+# profile-rebuild swaps without needing /etc/passwd edits.
 if [ -f "$root/etc/passwd" ]; then
-    ed -s "$root/etc/passwd" <<EOF || true
+    ed -s "$root/etc/passwd" <<'EOF' || true
 /^root:/
-s,:/usr/bin/bash$,:${rootShell},
+s,:/usr/bin/bash$,:/nix/var/nix/profiles/default/bin/bash,
 w
 q
 EOF
