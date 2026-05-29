@@ -1,0 +1,28 @@
+zlib-ng: skip GNU-ld version-script on illumos
+
+Sun ld (illumos /usr/bin/ld, what our gcc defaults to via --with-ld=)
+doesn't accept GNU ld's --version-script flag and reports
+
+  ld: fatal: unrecognized option '--version-script'
+
+Sun ld uses mapfile syntax instead (-M file), but the file format is
+incompatible with the GNU version-script grammar zlib-ng ships. The
+simplest fix is to skip the GNU symbol-versioning machinery on illumos
+entirely; the resulting libz-ng.so just doesn't carry symbol versions,
+which is fine for our consumers (git, etc.).
+
+The same enclosing `if` block also adds -DHAVE_SYMVER, which is what
+gates the use of __attribute__((symver(...))) elsewhere; skip both
+together so we don't get unresolved-symbol references at link time.
+
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1284,7 +1284,7 @@ if(BUILD_SHARED_LIBS)
+         if(HAVE_NO_INTERPOSITION)
+             set_target_properties(zlib PROPERTIES COMPILE_FLAGS "-fno-semantic-interposition")
+         endif()
+-        if(NOT APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL AIX)
++        if(NOT APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL AIX AND NOT CMAKE_SYSTEM_NAME STREQUAL SunOS)
+             if(NOT ZLIB_COMPAT)
+                 add_definitions(-DHAVE_SYMVER)
+             endif()

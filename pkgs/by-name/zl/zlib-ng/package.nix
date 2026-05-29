@@ -19,6 +19,10 @@ stdenv.mkDerivation rec {
     hash = "sha256-c2RYqHi3hj/ViBzJcYWoNib27GAbq/B1SJUfvG7CPG4=";
   };
 
+  patches = lib.optionals stdenv.hostPlatform.isIllumos [
+    ./illumos-no-version-script.patch
+  ];
+
   outputs = [
     "out"
     "dev"
