@@ -52,11 +52,6 @@
   pkgs ? import ../../.. { },
   # Absolute path to a built smartos-live tree.
   smartosLive ? "/workspace/smartos-live",
-  # bash-interactive 5.3p3, pinned to the same store path
-  # make-zone-image.nix uses so root's login shell (substituted into
-  # /etc/passwd below) resolves to the bash this image actually ships.
-  # Update both pins together when bash gets rebuilt.
-  bash ? builtins.storePath /nix/store/b9fi3f6i5ccfyli18bnkgqpq2h2fzrds-bash-interactive-5.3p3,
   system ? "x86_64-illumos",
 }:
 let
@@ -68,9 +63,10 @@ derivation {
   inherit system;
 
   inherit smartosLive;
-  rootShell = "${bash}/bin/bash";
   manifestList = ./zone-root/manifests;
   createSmfRepo = ./zone-root/create-smf-repo.sh;
+  profileFile = ./zone-root/profile;
+  systemNix = ./zone-root/system.nix;
   builder = "/usr/bin/bash";
   args = [ ./zone-root/builder.sh ];
 
