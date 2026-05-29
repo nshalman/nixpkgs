@@ -46,6 +46,7 @@
 }:
 let
   inherit (pkgs) lib;
+  inherit (pkgs.buildPackages) gnutar;
 in
 {
   image = derivation {
@@ -56,11 +57,14 @@ in
     imageName = name;
     imageVersion = version;
     imageDescription = description;
+    # illumos /usr/bin/tar can't unpack the GNU tar @LongLink
+    # extension; pass the nix-built gnutar explicitly.
+    gtarPath = "${gnutar}/bin/tar";
 
     builder = "/usr/bin/bash";
     args = [ ./make-joyent-image-nix-builder.sh ];
 
-    # Script is impure; needs zfs, gzip, tar, sha1sum/digest, uuidgen
+    # Script is impure; needs zfs, gzip, sha1sum/digest, uuidgen
     # — all of which live under /usr/{bin,sbin} on the host.
     PATH = "/usr/bin:/usr/sbin";
 
