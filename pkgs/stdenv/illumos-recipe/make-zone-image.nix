@@ -46,6 +46,12 @@
   # zone-tree rebuilds on every iteration we do). Flip to true when
   # building a final / shippable image.
   shipNixpkgs ? false,
+  # Bundle pkgs.stdenv's full closure into the zone's /nix/store so
+  # `nix-build '<nixpkgs>' -A hello` works offline (no fetch of
+  # bootstrap-tools.tar.xz). NOT added to the buildEnv'd PATH — stdenv
+  # is invoked via nix-build, not directly. Default off; flip to true
+  # for the publicly-shippable image.
+  shipStdenv ? false,
 }:
 let
   inherit (pkgs) runCommand closureInfo writeText buildEnv lib;
@@ -83,7 +89,10 @@ let
     else null;
 
   closure = closureInfo {
-    rootPaths = [ systemEnv ] ++ lib.optional shipNixpkgs nixpkgsSnapshot;
+    rootPaths =
+      [ systemEnv ]
+      ++ lib.optional shipNixpkgs nixpkgsSnapshot
+      ++ lib.optional shipStdenv pkgs.stdenv;
   };
 
   nixConf = writeText "nix.conf" (''
