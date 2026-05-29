@@ -27,32 +27,76 @@
 # outside this derivation). Layer on as we learn what's needed.
 {
   pkgs ? import ../../.. { },
-  # The nix package to ship. Default is the Phase-5-step-15 build
-  # (nix-2.33.6+9 against the illumos-recipe stdenv), pinned via
-  # storePath so we don't accidentally rebuild a different nix version
-  # — pkgs.nix in this nixpkgs branch is 2.31.5 and won't compile on
-  # illumos without further patches.
-  nix ? builtins.storePath /nix/store/1x7hzfrph24yzm47pr5xk5gs5gi9h9c5-nix-2.33.6+9,
-  # bash-interactive 5.3p3 built against this stdenv. Pinned so we ship
-  # bash in the image without dragging in pkgs.bashInteractive (which
-  # may evaluate to a not-yet-built variant).
-  bash ? builtins.storePath /nix/store/b9fi3f6i5ccfyli18bnkgqpq2h2fzrds-bash-interactive-5.3p3,
-  # Additional store paths to bundle. The closure-walker pulls in their
-  # runtime dependencies automatically.
-  extraRootPaths ? [ ],
+  # The nix package to ship. We deliberately use nixVersions.nix_2_33
+  # rather than the package-set default `pkgs.nix` — the default is
+  # 2.31.5 in this branch and doesn't compile on illumos.
+  # nixVersions.nix_2_33 is 2.33.6+9, the Phase-5-step-15 build with
+  # the illumos portability work. Use .out (not the package itself)
+  # because buildEnv would otherwise try to include outputs like `man`
+  # that haven't been built.
+  nix ? pkgs.nixVersions.nix_2_33.out,
+  bash ? pkgs.bashInteractive,
+  # Additional packages (or store paths) to expose via the system env.
+  # Default: coreutils + rsync so the merged bin/ has the usual GNU
+  # userland alongside bash/nix.
+  extraRootPaths ? [ pkgs.coreutils pkgs.rsync ],
+  # Ship a copy of this nixpkgs tree at /etc/nixos/nixpkgs and set the
+  # default nix-path so `<nixpkgs>` resolves out of the box. Default
+  # off because the snapshot's hash invalidates on any tree edit (so
+  # zone-tree rebuilds on every iteration we do). Flip to true when
+  # building a final / shippable image.
+  shipNixpkgs ? false,
 }:
 let
-  inherit (pkgs) runCommand closureInfo writeText lib;
+  inherit (pkgs) runCommand closureInfo writeText buildEnv lib;
   inherit (pkgs.buildPackages) xz gnutar rsync;
 
-  closure = closureInfo { rootPaths = [ nix bash ] ++ extraRootPaths; };
+  # NixOS-style "system" env: one store path with a bin/ etc/ share/...
+  # tree of symlinks into every constituent package. Lets users type
+  # `bash`, `nix`, etc. from a single PATH entry, and provides the
+  # canonical /nix/var/nix/profiles/default symlink target. Extend the
+  # `paths` list to expose more tools in the merged tree.
+  systemEnv = buildEnv {
+    name = "nix-zone-system";
+    paths = [ nix bash ] ++ extraRootPaths;
+    pathsToLink = [ "/bin" "/etc" "/lib" "/libexec" "/share" ];
+    ignoreCollisions = true;
+  };
 
-  nixConf = writeText "nix.conf" ''
+  # Snapshot of THIS nixpkgs tree, ingested into the store, when
+  # shipNixpkgs = true. .git/result/outputs/.direnv filtered out.
+  nixpkgsSnapshot =
+    if shipNixpkgs then
+      builtins.path {
+        path = ../../..;
+        name = "nixpkgs-snapshot";
+        filter =
+          path: type:
+          let
+            base = baseNameOf path;
+          in
+          base != ".git"
+          && base != "result"
+          && base != "outputs"
+          && base != ".direnv";
+      }
+    else null;
+
+  closure = closureInfo {
+    rootPaths = [ systemEnv ] ++ lib.optional shipNixpkgs nixpkgsSnapshot;
+  };
+
+  nixConf = writeText "nix.conf" (''
     experimental-features = nix-command flakes
     build-users-group =
     substituters =
     trusted-users = root
-  '';
+  '' + lib.optionalString shipNixpkgs ''
+    # Default NIX_PATH so `<nixpkgs>` resolves out of the box. Users
+    # can override per-session via NIX_PATH=... or by replacing the
+    # /etc/nixos/nixpkgs symlink with their own tree.
+    nix-path = nixpkgs=/etc/nixos/nixpkgs
+  '');
 
 in
 rec {
@@ -75,12 +119,20 @@ rec {
     # The registration file consumed by `nix-store --load-db`.
     cp ${closure}/registration $out/nix/var/nix/.reginfo
 
-    # Single profile pointing at the nix package. Use a relative symlink
-    # so the zone's filesystem layout isn't pinned to the build host.
-    ln -s ${nix} $out/nix/var/nix/profiles/default
+    # Default profile points at the buildEnv'd system tree so users see
+    # `bash`, `nix`, etc. through a single bin/ dir.
+    ln -s ${systemEnv} $out/nix/var/nix/profiles/default
 
     # Single-user nix.conf.
     cp ${nixConf} $out/etc/nix/nix.conf
+
+    ${lib.optionalString shipNixpkgs ''
+      # Ship the nixpkgs source tree at /etc/nixos/nixpkgs so the default
+      # NIX_PATH (set in nix.conf above) and `<nixpkgs>` references in
+      # /etc/nixos/system.nix work out of the box.
+      mkdir -p $out/etc/nixos
+      ln -s ${nixpkgsSnapshot} $out/etc/nixos/nixpkgs
+    ''}
   '';
 
   # Tarball of the staging tree, gzip-tar to keep this build cheap; bump
