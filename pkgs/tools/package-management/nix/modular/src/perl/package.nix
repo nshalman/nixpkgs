@@ -31,8 +31,12 @@ perl.pkgs.toPerlModule (
       libsodium
     ];
 
-    # `perlPackages.Test2Harness` is marked broken for Darwin
-    doCheck = !stdenv.isDarwin;
+    # `perlPackages.Test2Harness` is marked broken for Darwin.
+    # On illumos patchShebangs leaves Test2Harness' /bin/yath script
+    # unrunnable (we already skip Test2Harness' own checkPhase) and
+    # meson's test driver dies with OSError: Exec format error trying
+    # to exec it.
+    doCheck = !stdenv.isDarwin && !stdenv.hostPlatform.isIllumos;
 
     nativeCheckInputs = [
       perlPackages.Test2Harness
