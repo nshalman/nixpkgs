@@ -23,4 +23,5 @@ exec "$driver" \
     --name           "$imageName" \
     --version        "$imageVersion" \
     --description    "$imageDescription" \
+    --gtar           "$gtarPath" \
     --out-dir        "$out"

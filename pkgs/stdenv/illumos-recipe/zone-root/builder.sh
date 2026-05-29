@@ -60,13 +60,30 @@ rm -f "$root/etc/cron.d/crontabs/root"
 # zone-root/profile for content.) We own this file rather than patching
 # proto's because the patches needed are large enough that owning is
 # cleaner — and matches NixOS's convention of generating /etc/profile.
-install -m 0644 "$profileFile" "$root/etc/profile"
+# illumos /usr/bin/install is SUS-syntax (install -c -m mode src destdir),
+# not GNU `install -m mode src dst` — use plain cp + chmod instead.
+cp "$profileFile" "$root/etc/profile"
+chmod 0644 "$root/etc/profile"
 
 # /etc/nixos/system.nix: editable equivalent of NixOS's configuration.nix.
 # Documented at the top of the file; tl;dr `nix-build /etc/nixos/system.nix
 # -o /nix/var/nix/profiles/default` to rebuild and swap the system profile.
 mkdir -p "$root/etc/nixos"
-install -m 0644 "$systemNix" "$root/etc/nixos/system.nix"
+cp "$systemNix" "$root/etc/nixos/system.nix"
+chmod 0644 "$root/etc/nixos/system.nix"
+
+# /etc/ssl/certs: provide both standard filenames as symlinks into the
+# Mozilla CA bundle that pkgs.cacert ships under the system profile.
+# illumos's proto /etc has /etc/openssl/ (openssl config dir) but no
+# /etc/ssl/, so apps like git/curl/wget that hardcode
+# /etc/ssl/certs/ca-bundle.crt (RHEL convention) or
+# /etc/ssl/certs/ca-certificates.crt (Debian convention) both find the
+# bundle. ca-certificates.crt is a relative symlink so it follows the
+# same indirection.
+mkdir -p "$root/etc/ssl/certs"
+ln -sf /nix/var/nix/profiles/default/etc/ssl/certs/ca-bundle.crt \
+    "$root/etc/ssl/certs/ca-bundle.crt"
+ln -sf ca-bundle.crt "$root/etc/ssl/certs/ca-certificates.crt"
 
 # Root shadow: proto/etc ships `root::...` (empty password), which
 # pam_authtok_get rejects with "empty password not allowed". Stock
