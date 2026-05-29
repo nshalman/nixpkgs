@@ -72,7 +72,26 @@ SMARTOS_LIVE="$smartosLive" \
 GNUGREP="$gnugrepPath/bin/grep" \
     "$createSmfRepo" "$manifestList" "$root/etc/svc/repository.db"
 
-# --- 5. Apply ownership/mode from smartos-live manifest.gen ------------------
+# --- 5. zoneinit features declaration ----------------------------------------
+# vmadm's checkDatasetProvisionable() rejects the dataset unless
+# /var/zoneinit/zoneinit.json declares features.var_svc_provisioning =
+# true. The brand `joyent` does NOT set this in BRAND_OPTIONS, so vmadm
+# falls through to the dataset check and refuses to provision without
+# the file. We don't ship the imagetools S99final hook (we drop into a
+# nix-managed runtime, not zoneinit's), but the bare features
+# declaration is enough.
+mkdir -p "$root/var/zoneinit"
+cat > "$root/var/zoneinit/zoneinit.json" <<'JSON'
+{
+  "version": "1.5.1",
+  "features": {
+    "var_svc_provisioning": true,
+    "reboot": true
+  }
+}
+JSON
+
+# --- 6. Apply ownership/mode from smartos-live manifest.gen ------------------
 # manifest.gen lines look like:
 #   <type> <relpath> <mode> <owner> <group> [...]
 # where type is f/d/l (file/dir/link). We honor f and d; symlinks
@@ -99,7 +118,7 @@ while read ftype file mode owner group _rest; do
     esac
 done < "$smartosLive/manifest.gen"
 
-# --- 6. Pack -----------------------------------------------------------------
+# --- 7. Pack -----------------------------------------------------------------
 # Reproducible flags mirror make-bootstrap-tools / make-zone-image.
 cd "$root"
 XZ_OPT="-6 -T 4" "$tar" cJf "$out" \
