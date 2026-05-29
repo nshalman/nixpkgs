@@ -51,6 +51,12 @@ mkMesonLibrary (finalAttrs: {
   mesonFlags = [
     (lib.mesonEnable "seccomp-sandboxing" stdenv.hostPlatform.isLinux)
     (lib.mesonBool "embedded-sandbox-shell" embeddedSandboxShell)
+    # aws-crt-cpp is only added to buildInputs on Linux / Darwin (see
+    # above). Without an explicit disable, mesonConfigurePhase's
+    # auto_features=enabled makes the s3-aws-auth feature required and
+    # the find_library('aws-crt-cpp') call fails on illumos / BSDs.
+    (lib.mesonEnable "s3-aws-auth"
+      (stdenv.hostPlatform == stdenv.buildPlatform && (stdenv.isLinux || stdenv.isDarwin)))
   ]
   ++ lib.optionals stdenv.hostPlatform.isLinux [
     (lib.mesonOption "sandbox-shell" "${busybox-sandbox-shell}/bin/busybox")
