@@ -49,6 +49,16 @@ stdenv.mkDerivation (finalAttrs: {
   # https://github.com/jqlang/jq/issues/2871
   postPatch = lib.optionalString stdenv.hostPlatform.isFreeBSD ''
     substituteInPlace Makefile.am --replace-fail "tests/mantest" "" --replace-fail "tests/optionaltest" ""
+  ''
+  # libtool translates -export-symbols-regex into -Wl,-retain-symbols-file
+  # (GNU-ld syntax) even after configure detects Sun ld. gcc-illumos
+  # invokes Sun ld via baked-in --with-ld=/usr/bin/ld, which errors on
+  # the .exp file. Drop the regex — libjq.so will export everything but
+  # consumers only reference jq_*/jv_* symbols anyway. Same workaround
+  # pattern as pkgs/development/libraries/gettext/illumos-libtool-fix.patch.
+  + lib.optionalString stdenv.hostPlatform.isIllumos ''
+    substituteInPlace Makefile.am \
+      --replace-fail " -export-symbols-regex '^j[qv]_'" ""
   '';
 
   # Upstream script that writes the version that's eventually compiled

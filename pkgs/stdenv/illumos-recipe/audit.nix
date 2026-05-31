@@ -1,16 +1,20 @@
 # Cleanliness audit for the final stdenv (and other rooted closures).
 #
-# For each requested root, scans every file in the closure for plain
-# string refs to forbidden host paths (/opt/local, illumos-strap-tools,
-# proto-strap) and fails the build if any appear.
+# Two semantically distinct checks for forbidden host-system paths:
 #
-# This is a regression tripwire: the final stdenv's contract is "no
-# /opt/local string refs anywhere in the closure" and the deep grep is
-# the cheapest way to keep us honest. A green build of `nix-build
-# audit.nix -A stdenv` means the chain hasn't regressed. `pkgs.stdenv`
-# resolves to stage 3 (the last entry in pkgs/stdenv/illumos-recipe/
-# default.nix); stage 3 inherits all userland and the cc itself from a
-# stage-2-clean rebuild, so its drv graph carries no proto-strap.
+#  - closurePatterns: fails if any /nix/store path in the runtime
+#    closure has the pattern in its name. This is what nix would
+#    actually pull in at deploy time. Used for build-time-only
+#    dependencies (proto-strap, illumos-strap-tools) — they may
+#    still appear as dead substrings inside binaries (e.g. baked-in
+#    configure args records) but those substrings don't make the
+#    derivation depend on them.
+#
+#  - substringPatterns: deep-greps every file in the closure for
+#    the literal pattern. Used for /opt/local because consumers can
+#    `dlopen` or `exec` paths that nix never sees — a /opt/local
+#    string baked into a binary IS a functional dep even if the
+#    derivation graph doesn't know it.
 #
 # Usage:
 #   nix-build pkgs/stdenv/illumos-recipe/audit.nix -A stdenv
@@ -22,14 +26,13 @@ let
   inherit (pkgs) runCommand closureInfo lib;
   inherit (pkgs.buildPackages) gnugrep;
 
-  # Patterns we don't want anywhere in the closure. Note `/usr/gcc` is
-  # tolerated for now in some upstreams (host gcc-10 RUNPATH leak via
-  # proto-strap, see make-bootstrap-tools.nix); included here so the
-  # audit reports it but consumers can filter / accept.
-  forbidden = [
-    "/opt/local"
+  closurePatterns = [
     "illumos-strap-tools"
     "proto-strap"
+  ];
+
+  substringPatterns = [
+    "/opt/local"
   ];
 
   auditClosure =
@@ -42,18 +45,34 @@ let
       ''
         set -eu
         bad=0
-        patterns=${lib.escapeShellArgs forbidden}
+
+        closurePats=( ${lib.escapeShellArgs closurePatterns} )
+        substringPats=( ${lib.escapeShellArgs substringPatterns} )
+
+        # Closure-path check: fail if any forbidden derivation name is
+        # in the runtime closure.
         for p in $(cat $ci/store-paths); do
-          for pat in $patterns; do
-            # -a: treat binaries as text, -I: skip nothing, -l: just names,
-            # -r: recursive. We want a hit in any file (binary or text).
+          for pat in "''${closurePats[@]}"; do
+            if [[ "$p" == *"$pat"* ]]; then
+              echo "FORBIDDEN: closure contains '$pat' via $p" >&2
+              bad=1
+            fi
+          done
+        done
+
+        # Substring deep-grep: fail if any forbidden literal string
+        # appears in any closure file.
+        for p in $(cat $ci/store-paths); do
+          for pat in "''${substringPats[@]}"; do
+            # -a: treat binaries as text, -l: just names, -r: recursive.
             if hits=$(grep -ralF "$pat" "$p" 2>/dev/null) && [ -n "$hits" ]; then
-              echo "FORBIDDEN: $p references '$pat':" >&2
+              echo "FORBIDDEN: $p substring-matches '$pat':" >&2
               echo "$hits" | sed 's/^/    /' >&2
               bad=1
             fi
           done
         done
+
         if [ "$bad" = 1 ]; then
           echo "closure cleanliness audit FAILED for ${name}" >&2
           exit 1

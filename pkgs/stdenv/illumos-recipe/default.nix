@@ -64,15 +64,15 @@ let
 
   # Shared across all stages: native-libc relaxation and pkg-config
   # isolation from /opt/local.
+  # NOTE: keep this hook free of the literal string "/opt/local". The
+  # body of `prehookCommon` is embedded verbatim into the stdenv setup
+  # script; anything written here ends up in the runtime closure where
+  # `audit.nix` flags it as a forbidden host-path reference (even from
+  # a comment). The pkg-config isolation rationale belongs in this
+  # file's prose, not in shell comments shipped via the stdenv.
   prehookCommon = ''
-    # Native libc; don't enforce nix-store purity at the linker.
     export NIX_ENFORCE_PURITY=
     export NIX_ENFORCE_NO_NATIVE="''${NIX_ENFORCE_NO_NATIVE-1}"
-
-    # Stop pkg-config from auto-discovering /opt/local/lib/pkgconfig/*.pc
-    # and dragging /opt/local libs (openssl, ncurses, ...) into the
-    # store-path closure. Mirrors the prehookIsolated stanza from the
-    # old multi-stage illumos stdenv. See bd issue nix-blc.
     export PKG_CONFIG_LIBDIR=""
   '';
 
