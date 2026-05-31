@@ -4598,6 +4598,43 @@ with pkgs;
 
   gcc_latest = gcc15;
 
+  # SmartOS-recipe gcc-illumos. Built against Sun ld (/usr/bin/ld) per
+  # the illumos build recipe — see
+  # pkgs/development/compilers/gcc-illumos/default.nix.
+  #
+  # Wired into allPackages so each illumos-recipe stdenv stage rebuilds
+  # it against the current cc: stage N+1 inherits a gcc-illumos built
+  # by stage N's stdenv. Bootstrap chain at stage 0 starts from the
+  # scrubbed pin (pkgs/stdenv/illumos-recipe/pins.nix); by stage 3 the
+  # build provenance is fully nixpkgs-clean.
+  gcc-illumos =
+    if stdenv.hostPlatform.isIllumos then
+      import ../development/compilers/gcc-illumos {
+        host = {
+          binPath = "${stdenv.cc.cc}/bin";
+          gasPath = "${binutils-unwrapped}/bin/as";
+        };
+        extraHostPath = lib.makeBinPath [
+          binutils-unwrapped
+          bash
+          coreutils
+          findutils
+          gnumake
+          gawk
+          gnused
+          gnugrep
+          gnutar
+          diffutils
+          patch
+          m4
+          flex
+          bison
+        ];
+        system = stdenv.hostPlatform.system;
+      }
+    else
+      throw "gcc-illumos is only available on x86_64-illumos";
+
   libgccjit = gcc.cc.override {
     name = "libgccjit";
     langFortran = false;

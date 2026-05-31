@@ -1,4 +1,4 @@
-# Stdenv for x86_64-illumos. 3-stage chain.
+# Stdenv for x86_64-illumos. 4-stage chain.
 #
 # Stage 0 wraps the strap-tools tree (gcc-illumos + binutils-illumos
 # + host /usr/bin + /opt/local shell utilities) with cc-wrapper and
@@ -12,11 +12,20 @@
 # so the closure of anything built here transitively references
 # /opt/local symlinks.
 #
-# Stage 2 (final, clean) drops strap-tools entirely. cc and bintools
+# Stage 2 (clean userland) drops strap-tools entirely. cc and bintools
 # are rewrapped with nativeTools=false against stage-1-built bash /
-# coreutils / gnugrep / binutils-unwrapped / patchelf. initialPath is
-# a list of stage-1-built GNU userland paths. Closure goal: zero
-# /opt/local string refs, zero illumos-strap-tools refs.
+# coreutils / gnugrep / binutils-unwrapped / patchelf. The cc itself
+# is still the scrubbed gcc-illumos pin (proto-strap byte refs
+# neutralized post-hoc). initialPath is a list of stage-1-built GNU
+# userland paths.
+#
+# Stage 3 (fully clean) is structurally identical to stage 2 but its
+# prevStage is allPackages built by stage 2 — so the cc is a fresh
+# gcc-illumos rebuilt under stage 2's clean stdenv (no scrub needed),
+# and the userland is rebuilt by the same. Build-time .drv graph at
+# this stage has zero strap-tools / proto-strap provenance. This is
+# the layer intended to populate zone images and a future bootstrap
+# tarball.
 #
 # strap-tools sources its binutils from binutils-illumos (a clean,
 # Phase-4-built /opt/local-free output) rather than proto-strap's
@@ -270,6 +279,73 @@ in
         # Nixpkgs patchelf already ships the same fixupOutputHook
         # registration that patchelf-pin reproduces, so we use it
         # directly here — no pin/wrapper needed at this stage.
+        extraNativeBuildInputs = [
+          prevStage.patchelf
+          ./auto-rpath-hook.sh
+        ];
+
+        initialPath = cleanPath;
+        fetchurlBoot = prevStage.fetchurl;
+        shell = "${prevStage.bashNonInteractive}/bin/bash";
+        cc = cleanCC;
+        inherit config;
+        overrides = self: super: { inherit (prevStage) fetchurl; };
+      })
+      // {
+        inherit (prevStage) fetchurl;
+      };
+  })
+
+  # Stage 3 (fully clean): same shape as stage 2, but prevStage is
+  # stage-2-built allPackages. cc is prevStage.gcc-illumos — a fresh
+  # gcc-illumos compiled by stage 2's stdenv using the scrubbed pin
+  # as host. Its output has no proto-strap refs; the scrub trick is
+  # no longer needed. binutils-unwrapped, bash, coreutils, patchelf
+  # likewise come straight from prevStage and were built by stage 2.
+  (prevStage: {
+    inherit config overlays;
+    stdenv =
+      let
+        cleanBintools = prevStage.wrapBintoolsWith {
+          bintools = prevStage.binutils-unwrapped;
+          libc = null;
+          nativeTools = false;
+          nativeLibc = true;
+          nativePrefix = "";
+        };
+        cleanCC = prevStage.wrapCCWith {
+          cc = prevStage.gcc-illumos;
+          bintools = cleanBintools;
+          libc = null;
+          nativeTools = false;
+          nativeLibc = true;
+          nativePrefix = "";
+          isGNU = true;
+        };
+
+        cleanPath = with prevStage; [
+          bash
+          coreutils
+          findutils
+          gnutar
+          gnused
+          gnugrep
+          gawk
+          gnumake
+          diffutils
+          patch
+          xz
+          gzip
+          bzip2
+        ];
+      in
+      (import ../generic {
+        buildPlatform = localSystem;
+        hostPlatform = localSystem;
+        targetPlatform = localSystem;
+
+        preHook = prehookCommon;
+
         extraNativeBuildInputs = [
           prevStage.patchelf
           ./auto-rpath-hook.sh
