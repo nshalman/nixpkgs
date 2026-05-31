@@ -1,9 +1,22 @@
-Remove -export-symbols-regex from libtool invocations on illumos.
+Remove -export-symbols / -export-symbols-regex from libtool invocations
+on illumos.
 
-libtool's global_symbol_pipe is empty on illumos (configure detection fails),
-which causes export_symbols_cmds to generate broken pipelines like:
-  nm ... |  | sed ...
-The empty pipe segment causes a syntax error.
+Two distinct problems combined here:
+
+1. libtool's global_symbol_pipe is empty on illumos (configure detection
+   fails), so export_symbols_cmds expands to a broken pipeline:
+     nm ... |  | sed ...
+   The empty pipe segment is a shell syntax error. This bites every
+   library that uses -export-symbols-regex.
+
+2. For libraries using -export-symbols <file>, libtool translates that
+   to `-Wl,-retain-symbols-file -Wl,<file>` even when configure has
+   detected the non-GNU (Sun) ld — which gcc-illumos actually invokes
+   via its baked-in --with-ld=/usr/bin/ld. Sun ld treats the .sym file
+   as a positional input and fails with "unknown file type".
+
+Both fixes are mechanical: strip the offending libtool flags from the
+generated Makefile.in's so the broken codepaths never run.
 
 --- a/gettext-runtime/intl/Makefile.in
 +++ b/gettext-runtime/intl/Makefile.in
@@ -37,3 +50,14 @@ The empty pipe segment causes a syntax error.
  	$(am__append_2) $(am__append_3) $(am__append_4)
  @WOE32_FALSE@WOE32_LIBADD =
  @WOE32_TRUE@WOE32_LIBADD = libgettextpo.res.lo
+
+--- a/libtextstyle/lib/Makefile.in
++++ b/libtextstyle/lib/Makefile.in
+@@ -3381,8 +3381,7 @@
+ 	$(LIBSOCKET) $(LIBTHREAD) $(LOG10_LIBM) $(LTLIBC32CONV) \
+ 	$(LTLIBICONV) $(LTLIBINTL) $(LTLIBUNISTRING) $(MBRTOWC_LIB) \
+ 	$(POW_LIBM) $(SETLOCALE_NULL_LIB) $(LTLIBCROCO) $(LTLIBGLIB) \
+-	$(LTLIBXML) $(LTLIBTERMINFO) -no-undefined -export-symbols \
+-	libtextstyle.sym -version-info \
++	$(LTLIBXML) $(LTLIBTERMINFO) -no-undefined -version-info \
+ 	$(LTV_CURRENT):$(LTV_REVISION):$(LTV_AGE) -rpath $(libdir)

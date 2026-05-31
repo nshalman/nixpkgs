@@ -54,7 +54,12 @@ stdenv.mkDerivation (finalAttrs: {
   '';
 
   # In stdenv-linux, prevent a dependency on bootstrap-tools.
-  preConfigure = "CONFIG_SHELL=/bin/sh";
+  # Skipped on illumos: /bin/sh = ksh93 there, and configure under ksh
+  # picks `ECHO="print -r --"` in the generated libtool — which then
+  # fails when make invokes libtool via bash (no `print` builtin).
+  # Leaving CONFIG_SHELL at the stdenv default ($SHELL = bash) makes
+  # configure detect printf and emit a portable libtool.
+  preConfigure = lib.optionalString (!stdenv.hostPlatform.isIllumos) "CONFIG_SHELL=/bin/sh";
 
   postInstall = "rm -rf $out/share/doc";
 
