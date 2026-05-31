@@ -58,6 +58,9 @@ let
         printf 'closure clean: %s\n' "${name}" > $out
       '';
 
+  bootstrapToolsPkgs =
+    (import ./make-bootstrap-tools.nix { inherit pkgs; }).bootstrap-tools-packages;
+
 in
 {
   stdenv = auditClosure "stdenv" [ pkgs.stdenv ];
@@ -67,4 +70,11 @@ in
   # regressions in the corresponding subgraph.
   hello = auditClosure "hello" [ pkgs.hello ];
   bash = auditClosure "bash" [ pkgs.bash ];
+
+  # The full closure that goes into the bootstrap-tools tarball.
+  # Building this clean is the precondition for the tarball working on
+  # zones without /opt/local. Empirical test: extract the tarball with
+  # /opt/local moved aside and run bash + gcc compile-and-link (see
+  # ./test-bootstrap-tarball.sh).
+  bootstrap-tools = auditClosure "bootstrap-tools" bootstrapToolsPkgs;
 }
