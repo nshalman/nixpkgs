@@ -28,26 +28,19 @@ let
   inherit (pkgs.buildPackages) dumpnar rsync;
 
   # gcc-illumos isn't wired into all-packages.nix yet; import directly.
-  # Should match what pkgs/stdenv/illumos-recipe uses so the closures
-  # union cleanly.
+  # Used only for `.lib` (libgcc_s + libstdc++) — the `out` driver is
+  # picked up via the scrubbed pin below, not from this import.
   gcc-illumos = import ../../development/compilers/gcc-illumos { };
 
-  # gcc-illumos-scrubbed: gcc-illumos.out with proto-strap-hash,
-  # original-gcc-illumos.out-hash, and /opt/local string references
-  # byte-replaced to invalid bytes. This collapses the closure from
-  # {scrubbed, gcc-illumos.out, gcc-illumos.lib, proto-strap} (which
-  # leaked /opt/local via proto-strap's polluted binutils) down to
-  # {scrubbed, gcc-illumos.lib}. gcc still works because the driver
-  # uses its own binary's location to compute relative paths to its
-  # libexec/include/lib subtrees (verified via `gcc -print-search-dirs`
-  # + a hello-world compile-and-run).
-  gcc-illumos-scrubbed = import ../../development/compilers/gcc-illumos-scrub { };
-
-  # binutils-illumos pinned to the same store path strap-tools.nix uses;
-  # see ./pins.nix for the rebuild recipe. Replaces the original
-  # proto-strap dep, whose binutils carried /opt/local/lib in DT_RUNPATH
-  # (pre-baked by SmartOS's pkgsrc-binutils build).
-  binutils-illumos = (import ./pins.nix).binutilsIllumos;
+  # Pinned storePaths shared with strap-tools.nix and stage 2 (see
+  # ./pins.nix). We deliberately don't `import ../../development/compilers/
+  # gcc-illumos-scrub { }` here: that file's defaults pull pkgs.python3
+  # (for the scrubbing builder), which evaluates the cpython expression
+  # — currently fails on illumos because stdenv.hostPlatform.libc = null.
+  # The pin is the already-built artifact, no rebuild triggered at eval.
+  pins = import ./pins.nix;
+  gcc-illumos-scrubbed = pins.gccIllumosScrub;
+  binutils-illumos = pins.binutilsIllumos;
 
   # Use rsync for the closure copy, consistent with make-zone-image.nix
   # and make-zone-root.nix. rsync -a preserves modes (including the
@@ -118,9 +111,10 @@ rec {
         rm -rf include lib/*.a lib/bash share
       '';
 
-  # Main userland tarball. Toolchain (gcc-illumos + proto-strap binutils)
-  # is packaged here so a fresh consumer doesn't need /opt/local at all.
-  bootstrap-tools = tar-all "bootstrap-tools.tar.xz" (
+  # Roots of the tarball's closure. Exposed as a top-level attribute
+  # so audit.nix can deep-grep this exact set without duplicating the
+  # list. Anything added here is also implicitly auditable.
+  bootstrap-tools-packages =
     with pkgs;
     [
       # GNU userland
@@ -145,18 +139,21 @@ rec {
       zlib.dev
 
       # Toolchain — scrubbed gcc-illumos.out (proto-strap refs neutralized;
-      # see comment on gcc-illumos-scrubbed above), original gcc-illumos.lib
-      # (already clean; closure = self), plus binutils-illumos for gas /
-      # GNU binutils (ld, ld.bfd, ld.gold, as, ar, nm, ...). Sun ld is the
-      # system /usr/bin/ld, not packaged.
+      # see ./pins.nix and pkgs/development/compilers/gcc-illumos-scrub),
+      # original gcc-illumos.lib (already clean; closure = self), plus
+      # binutils-illumos for gas / GNU binutils (ld, ld.bfd, ld.gold, as,
+      # ar, nm, ...). Sun ld is the system /usr/bin/ld, not packaged.
       gcc-illumos-scrubbed
       gcc-illumos.lib
       binutils-illumos
 
       # cc-wrapper helper
       expand-response-params
-    ]
-  ) ''
+    ];
+
+  # Main userland tarball. Toolchain (gcc-illumos + proto-strap binutils)
+  # is packaged here so a fresh consumer doesn't need /opt/local at all.
+  bootstrap-tools = tar-all "bootstrap-tools.tar.xz" bootstrap-tools-packages ''
     # Trim non-essential docs to keep the tarball small.
     rm -rf share/info share/doc share/man
   '';
