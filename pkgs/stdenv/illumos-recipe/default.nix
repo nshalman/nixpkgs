@@ -1,11 +1,22 @@
-# Stdenv for x86_64-illumos. 2-stage chain.
+# Stdenv for x86_64-illumos. 3-stage chain.
 #
 # Stage 0 wraps the strap-tools tree (gcc-illumos + binutils-illumos
 # + host /usr/bin + /opt/local shell utilities) with cc-wrapper and
 # bintools-wrapper in nativeTools mode. This is the "first real
 # stdenv" — it can evaluate stdenv.mkDerivation; its bootstrap inputs
 # are impure (symlinks into /usr/bin and /opt/local for the shell
-# utility tools only). Stage 1 builds the full package set on top.
+# utility tools only).
+#
+# Stage 1 builds the full package set on top of stage 0. Outputs are
+# nix-built but the stdenv's initialPath still points at strap-tools,
+# so the closure of anything built here transitively references
+# /opt/local symlinks.
+#
+# Stage 2 (final, clean) drops strap-tools entirely. cc and bintools
+# are rewrapped with nativeTools=false against stage-1-built bash /
+# coreutils / gnugrep / binutils-unwrapped / patchelf. initialPath is
+# a list of stage-1-built GNU userland paths. Closure goal: zero
+# /opt/local string refs, zero illumos-strap-tools refs.
 #
 # strap-tools sources its binutils from binutils-illumos (a clean,
 # Phase-4-built /opt/local-free output) rather than proto-strap's
@@ -168,7 +179,9 @@ in
   )
 
   # Stage 1: first real stdenv built from stage-0. At this point we can
-  # evaluate stdenv.mkDerivation for downstream packages.
+  # evaluate stdenv.mkDerivation for downstream packages. Outputs are
+  # nix-built but the stdenv still references strap-tools (and via it
+  # /opt/local) — stage 2 cleans that up.
   (prevStage: {
     inherit config overlays;
     stdenv =
@@ -176,6 +189,93 @@ in
         inherit (prevStage) cc fetchurl;
         overrides = self: super: { inherit (prevStage) fetchurl; };
       }
+      // {
+        inherit (prevStage) fetchurl;
+      };
+  })
+
+  # Stage 2 (clean final): drop strap-tools; rewrap cc + bintools
+  # nativeTools=false against stage-1's nix-built shell / coreutils /
+  # gnugrep / binutils-unwrapped / patchelf. The `cc` arg to
+  # wrapCCWith fakes a multi-output gcc-illumos: `${cc}` resolves to
+  # the scrubbed driver (no proto-strap refs), `getLib cc` resolves
+  # to the original gcc-illumos.lib (libgcc_s + libstdc++, clean).
+  (prevStage: {
+    inherit config overlays;
+    stdenv =
+      let
+        gccIllumos = import ../../development/compilers/gcc-illumos { };
+        # Same scrubbed-gcc storePath strap-tools.nix uses; updating
+        # one requires updating both.
+        gccIllumosScrub =
+          builtins.storePath /nix/store/bzvb3ps82ha7aynf3l38ax77m6q257n3-gcc-illumos-scrubbed;
+        # Attribute trick: override outPath so `getBin cc` / `${cc}`
+        # resolve to the scrubbed driver, while inherited `.lib` keeps
+        # pointing at the original (clean) gcc-illumos.lib output for
+        # cc_solib / libgcc_s discovery.
+        gccIllumosClean = gccIllumos // {
+          outPath = "${gccIllumosScrub}";
+        };
+
+        cleanBintools = prevStage.wrapBintoolsWith {
+          bintools = prevStage.binutils-unwrapped;
+          libc = null;
+          nativeTools = false;
+          nativeLibc = true;
+          nativePrefix = "";
+        };
+        cleanCC = prevStage.wrapCCWith {
+          cc = gccIllumosClean;
+          bintools = cleanBintools;
+          libc = null;
+          nativeTools = false;
+          nativeLibc = true;
+          nativePrefix = "";
+          isGNU = true;
+        };
+
+        cleanPath = with prevStage; [
+          bash
+          coreutils
+          findutils
+          gnutar
+          gnused
+          gnugrep
+          gawk
+          gnumake
+          diffutils
+          patch
+          xz
+          gzip
+          bzip2
+        ];
+
+        # Reuse patchelf-pin's setup-hook (registers patchELF as a
+        # fixupOutputHook) but point it at stage-1-built patchelf
+        # instead of the storePath-pinned binary.
+        cleanPatchelf = import ./patchelf-pin.nix {
+          patchelfStorePath = prevStage.patchelf;
+        };
+      in
+      (import ../generic {
+        buildPlatform = localSystem;
+        hostPlatform = localSystem;
+        targetPlatform = localSystem;
+
+        preHook = prehookBase;
+
+        extraNativeBuildInputs = [
+          cleanPatchelf
+          ./auto-rpath-hook.sh
+        ];
+
+        initialPath = cleanPath;
+        fetchurlBoot = prevStage.fetchurl;
+        shell = "${prevStage.bashNonInteractive}/bin/bash";
+        cc = cleanCC;
+        inherit config;
+        overrides = self: super: { inherit (prevStage) fetchurl; };
+      })
       // {
         inherit (prevStage) fetchurl;
       };
