@@ -1,13 +1,16 @@
-# Cleanliness audit for the stage-2 stdenv (and other rooted closures).
+# Cleanliness audit for the final stdenv (and other rooted closures).
 #
 # For each requested root, scans every file in the closure for plain
 # string refs to forbidden host paths (/opt/local, illumos-strap-tools,
-# proto-strap, /usr/gcc) and fails the build if any appear.
+# proto-strap) and fails the build if any appear.
 #
-# This is a regression tripwire: stage 2's contract is "no /opt/local
-# string refs anywhere in the closure" and the deep grep is the cheapest
-# way to keep us honest. A green build of `nix-build audit.nix -A stdenv`
-# means stage 2 hasn't regressed.
+# This is a regression tripwire: the final stdenv's contract is "no
+# /opt/local string refs anywhere in the closure" and the deep grep is
+# the cheapest way to keep us honest. A green build of `nix-build
+# audit.nix -A stdenv` means the chain hasn't regressed. `pkgs.stdenv`
+# resolves to stage 3 (the last entry in pkgs/stdenv/illumos-recipe/
+# default.nix); stage 3 inherits all userland and the cc itself from a
+# stage-2-clean rebuild, so its drv graph carries no proto-strap.
 #
 # Usage:
 #   nix-build pkgs/stdenv/illumos-recipe/audit.nix -A stdenv
@@ -70,6 +73,15 @@ in
   # regressions in the corresponding subgraph.
   hello = auditClosure "hello" [ pkgs.hello ];
   bash = auditClosure "bash" [ pkgs.bash ];
+
+  # The stage-rebuilt gcc-illumos: the cc that backs stage 3. Audit this
+  # specifically to catch any proto-strap leak — the whole point of
+  # rebuilding gcc-illumos in nixpkgs allPackages is to drop the scrub
+  # pin in favor of a naturally clean build.
+  gcc-illumos = auditClosure "gcc-illumos" [
+    pkgs.gcc-illumos
+    pkgs.gcc-illumos.lib
+  ];
 
   # The full closure that goes into the bootstrap-tools tarball.
   # Building this clean is the precondition for the tarball working on

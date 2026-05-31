@@ -73,6 +73,12 @@ lib.warnIf (withDocs != null)
     + ''
       -DNON_INTERACTIVE_LOGIN_SHELLS
       -DSSH_SOURCE_BASHRC
+    ''
+    # examples/loadables/finfo.c gates <sys/mkdev.h> on MAJOR_IN_MKDEV,
+    # but bash's configure never probes for it. On illumos major/minor
+    # live in <sys/mkdev.h>, not <sys/types.h>, so define this manually.
+    + lib.optionalString stdenv.hostPlatform.isIllumos ''
+      -DMAJOR_IN_MKDEV
     '';
 
     patchFlags = [ "-p0" ];
