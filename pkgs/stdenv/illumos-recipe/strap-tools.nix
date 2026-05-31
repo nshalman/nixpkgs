@@ -19,18 +19,15 @@
   # Use the scrubbed .out so consumers do not transitively pull
   # proto-strap (~841 MB) via byte string refs embedded in the
   # compiler driver. gccIllumos.lib stays untouched: it carries no
-  # proto-strap refs and is shared by both variants.
-  #
-  # Pinned via builtins.storePath for the same reason as
-  # binutilsIllumos below: gcc-illumos-scrub's default.nix takes
-  # `pkgs ? import ../../../.. { }` so it can pull python3 + gnugrep,
+  # proto-strap refs and is shared by both variants. The scrub is
+  # pinned via builtins.storePath because gcc-illumos-scrub takes
+  # `pkgs ? import ../../../.. { }` (to pull python3 + gnugrep),
   # which causes infinite recursion when evaluated as part of the
-  # stdenv used to construct that very `pkgs`. Rebuild the scrub
-  # explicitly (e.g. `nix-build -E 'with import ./. {};
-  # callPackage pkgs/development/compilers/gcc-illumos-scrub {}'`)
-  # then update this hash.
-  gccIllumosScrub ? builtins.storePath /nix/store/bzvb3ps82ha7aynf3l38ax77m6q257n3-gcc-illumos-scrubbed,
-  binutilsIllumos ? builtins.storePath /nix/store/chjhxnwkp22s1nr2x9w8wdmmi1w9f0w7-binutils-2.44,
+  # stdenv used to construct that very `pkgs`. See pins.nix for the
+  # rebuild recipe.
+  pins ? import ./pins.nix,
+  gccIllumosScrub ? pins.gccIllumosScrub,
+  binutilsIllumos ? pins.binutilsIllumos,
   system ? "x86_64-illumos",
 }:
 derivation {
