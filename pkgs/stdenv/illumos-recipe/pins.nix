@@ -28,11 +28,19 @@
   binutilsIllumos =
     builtins.storePath /nix/store/chjhxnwkp22s1nr2x9w8wdmmi1w9f0w7-binutils-2.44;
 
-  # patchelf 0.15.2 built via the stage-1 stdenv. The pinned binary
-  # is consumed by patchelf-pin.nix to register the fixupOutputHook
-  # for stages 0/1 (stage 2 uses prevStage.patchelf directly).
-  # Rebuild via
-  #   nix-build -E 'with import ./. {}; patchelf' --no-out-link
+  # patchelf 0.15.2 built via the recipe's stage-2 stdenv. The pinned
+  # binary is consumed by patchelf-pin.nix to register the
+  # fixupOutputHook for stages 0/1 (stage 2 uses prevStage.patchelf
+  # directly). Runtime closure is just gcc-illumos-14.2.0-il-1-lib —
+  # zero strap-tools refs.
+  #
+  # Rebuild via:
+  #   1) Set patchelf = null (escape hatch — patchelf-pin.nix returns
+  #      null in that case and default.nix's makeStdenv drops it from
+  #      extraNativeBuildInputs, breaking the chicken-and-egg).
+  #   2) nix-build -E '(import ./. { localSystem = "x86_64-illumos"; }).patchelf' \
+  #        --out-link result-patchelf
+  #   3) Paste the resulting store path back here.
   patchelf =
-    builtins.storePath /nix/store/1bas7qp8p2slihjzqlabakzrblfl4ms6-patchelf-0.15.2;
+    builtins.storePath /nix/store/99mflhrjwf6bdlaayvmvyxfigjqkpcd5-patchelf-0.15.2;
 }

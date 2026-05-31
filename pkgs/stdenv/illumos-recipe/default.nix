@@ -53,7 +53,9 @@ let
   # to one input.
   path = [ strapTools ];
 
-  prehookBase = ''
+  # Shared across all stages: native-libc relaxation and pkg-config
+  # isolation from /opt/local.
+  prehookCommon = ''
     # Native libc; don't enforce nix-store purity at the linker.
     export NIX_ENFORCE_PURITY=
     export NIX_ENFORCE_NO_NATIVE="''${NIX_ENFORCE_NO_NATIVE-1}"
@@ -63,18 +65,22 @@ let
     # store-path closure. Mirrors the prehookIsolated stanza from the
     # old multi-stage illumos stdenv. See bd issue nix-blc.
     export PKG_CONFIG_LIBDIR=""
+  '';
 
-    # illumos has no /usr/bin/make; route the stdenv default through gmake.
+  # Stages 0/1 only: strap-tools-specific shimming.
+  #   - MAKE=gmake + alias make=gmake: strap-tools symlinks gmake from
+  #     /opt/local/bin (illumos /usr/bin/make is dmake, not GNU). Stage 2
+  #     uses nixpkgs gnumake which exposes the binary as `make`, so the
+  #     alias would break it (calls gmake which doesn't exist).
+  #   - STRIP=strip / AR=ar / ... explicit exports: in nativeTools=true
+  #     mode (stage 0's cc-wrapper) bintools-wrapper's setup-hook leaves
+  #     these unset because _PATH is empty. Stage 2 uses nativeTools=false
+  #     where bintools-wrapper auto-detects properly.
+  prehookStrap = ''
     export MAKE=gmake
     shopt -s expand_aliases
     alias make=gmake
 
-    # bintools-wrapper's setup-hook.sh tries to auto-detect strip/ar/nm/...
-    # via `PATH=$_PATH type -p <tool>`. In nativeTools=true mode with
-    # null bintools_bin/coreutils_bin, _PATH stays empty and the detection
-    # fails silently, leaving STRIP unset and the strip fixup-hook a no-op.
-    # Export them explicitly so binaries get stripped (and other tool
-    # vars match standard nixpkgs conventions).
     export STRIP=strip
     export AR=ar
     export AS=as
@@ -87,6 +93,8 @@ let
     export SIZE=size
     export STRINGS=strings
   '';
+
+  prehookBase = prehookCommon + prehookStrap;
 
   makeStdenv =
     {
@@ -102,10 +110,10 @@ let
       targetPlatform = localSystem;
 
       preHook = prehookBase;
-      extraNativeBuildInputs = extraNativeBuildInputs ++ [
-        patchelfPin
-        ./auto-rpath-hook.sh
-      ];
+      extraNativeBuildInputs =
+        extraNativeBuildInputs
+        ++ lib.optional (patchelfPin != null) patchelfPin
+        ++ [ ./auto-rpath-hook.sh ];
 
       initialPath = extraPath ++ path;
 
@@ -253,7 +261,11 @@ in
         hostPlatform = localSystem;
         targetPlatform = localSystem;
 
-        preHook = prehookBase;
+        # Clean prehook: no `alias make=gmake` (stage 2's initialPath
+        # has nixpkgs gnumake, which provides `make`, not `gmake`),
+        # no STRIP=strip exports (bintools-wrapper nativeTools=false
+        # auto-detects them).
+        preHook = prehookCommon;
 
         # Nixpkgs patchelf already ships the same fixupOutputHook
         # registration that patchelf-pin reproduces, so we use it
