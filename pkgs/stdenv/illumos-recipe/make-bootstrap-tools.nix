@@ -43,11 +43,11 @@ let
   # + a hello-world compile-and-run).
   gcc-illumos-scrubbed = import ../../development/compilers/gcc-illumos-scrub { };
 
-  # binutils-illumos pinned to the same store path strap-tools.nix uses.
-  # Update both together when binutils gets rebuilt. This replaces the
-  # original proto-strap dep, whose binutils carried /opt/local/lib in
-  # DT_RUNPATH (pre-baked by SmartOS's pkgsrc-binutils build).
-  binutils-illumos = builtins.storePath /nix/store/chjhxnwkp22s1nr2x9w8wdmmi1w9f0w7-binutils-2.44;
+  # binutils-illumos pinned to the same store path strap-tools.nix uses;
+  # see ./pins.nix for the rebuild recipe. Replaces the original
+  # proto-strap dep, whose binutils carried /opt/local/lib in DT_RUNPATH
+  # (pre-baked by SmartOS's pkgsrc-binutils build).
+  binutils-illumos = (import ./pins.nix).binutilsIllumos;
 
   # Use rsync for the closure copy, consistent with make-zone-image.nix
   # and make-zone-root.nix. rsync -a preserves modes (including the
