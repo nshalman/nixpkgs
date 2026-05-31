@@ -1,45 +1,37 @@
 #!/usr/bin/env bash
 #
-# Smoke-test that a bootstrap-tools tarball is self-sufficient on an
-# illumos zone without /opt/local. Intended workflow:
+# Verify that a bootstrap-tools.tar.xz contains zero /opt/local string
+# refs (and the other forbidden patterns the static audit also checks).
 #
-#   1) Build the tarball on the builder zone:
-#        nix-build pkgs/stdenv/illumos-recipe/make-bootstrap-tools.nix \
-#                  -A bootstrap-tools --no-out-link
-#      (Use -A build to also get the unpack.nar.xz alongside it.)
+# This is the runtime companion to `audit.nix -A bootstrap-tools`:
+#   - The static audit grep-scans the *nix-store closure* of the
+#     bootstrap-tools packages list at eval/build time.
+#   - This script grep-scans the *extracted tarball contents* — useful
+#     when you've received a tarball as a file (no nix store access)
+#     and want a second-opinion check before publishing or shipping.
 #
-#   2) Copy bootstrap-tools.tar.xz to the test zone.
+# What this script does NOT do: run binaries from the extracted tree.
+# The tarball's contents have absolute /nix/store/<hash>/lib RUNPATHs
+# baked in by the build — running them from an arbitrary extraction
+# point would fail at link time, but that failure mode is unrelated to
+# /opt/local cleanliness. End-to-end execution testing needs the
+# bootstrap-files unpacker (parallel to freebsd/unpack-bootstrap-files.sh),
+# which patchelf-rewrites RUNPATHs to the unpacked location. That's
+# out of scope here.
 #
-#   3) Manually move /opt/local aside (Nahum's preference: do this by
-#      hand, not from this script — keeps the zone's state predictable):
-#        mv /opt/local /opt/local.aside
+# Usage:
+#   ./test-bootstrap-tarball.sh <bootstrap-tools.tar.xz>
 #
-#   4) Run this script with the tarball path:
-#        ./test-bootstrap-tarball.sh /path/to/bootstrap-tools.tar.xz
-#
-#   5) Restore /opt/local after testing:
-#        mv /opt/local.aside /opt/local
-#
-# The script unpacks the tarball into a temp dir, narrows PATH to only
-# the extracted tree + /usr/bin + /usr/sbin (no /opt/local, no
-# /nix/var/nix/profiles/default), and runs a representative set of
-# build operations. Failure modes that matter:
-#   - missing tool      → tarball is incomplete
-#   - "Bad ELF interpreter" / "not found" → binary's RUNPATH points at
-#     a /nix/store path that was supposed to be in the tarball but
-#     isn't (or the extracted tree's layout isn't what binaries expect)
-#   - /opt/local in error output → not clean
-#
-# This is a *single-tree* test of the tarball's flat bin/lib/etc.
-# layout. It does not verify the full nix-store consumption path
-# (where binaries' /nix/store RUNPATHs are expected to resolve against
-# a populated /nix/store) — that test is a separate concern.
+# Exit codes:
+#   0 — clean
+#   1 — usage / file-not-found
+#   2 — forbidden refs found
 
 set -euo pipefail
 
 if [ $# -ne 1 ]; then
     echo "usage: $0 <bootstrap-tools.tar.xz>" >&2
-    exit 64
+    exit 1
 fi
 
 tarball="$1"
@@ -48,98 +40,43 @@ if [ ! -f "$tarball" ]; then
     exit 1
 fi
 
-# Refuse to run if /opt/local exists with expected pkgsrc content. The
-# whole point of the test is /opt/local being absent. Bail loudly
-# rather than producing false confidence.
-if [ -d /opt/local/bin ] && ls /opt/local/bin/* >/dev/null 2>&1; then
-    cat >&2 <<'EOM'
-error: /opt/local/bin exists and is populated. This test only proves
-the tarball is /opt/local-free if /opt/local is absent. Move it aside
-manually first:
-    mv /opt/local /opt/local.aside
-and re-run this script. Restore afterward.
-EOM
-    exit 2
-fi
+# Forbidden patterns — keep in sync with audit.nix's `forbidden` list.
+forbidden=(
+    "/opt/local"
+    "illumos-strap-tools"
+    "proto-strap"
+)
 
 work=$(mktemp -d -t boottest.XXXXXX)
 trap 'rm -rf "$work"' EXIT
-echo "==> Test root: $work"
+echo "==> extracting $tarball into $work"
+/usr/bin/tar -xJf "$tarball" -C "$work"
 
-# Use the system tar/xz to unpack — they're outside the tarball, in
-# /usr/bin, and don't depend on /opt/local.
-echo "==> Extracting $tarball"
-mkdir -p "$work/root"
-/usr/bin/tar -xJf "$tarball" -C "$work/root"
+# Use system grep here. We're scanning files that may be ELF binaries;
+# illumos /usr/bin/grep treats binary input as a single "no match" line
+# without `-a`, so prefer GNU grep if available, falling back to
+# /usr/bin/grep with explicit binary handling.
+if [ -x /opt/local/bin/ggrep ]; then
+    GREP=/opt/local/bin/ggrep
+elif [ -x /opt/local/bin/grep ]; then
+    GREP=/opt/local/bin/grep
+else
+    GREP=/usr/bin/grep
+fi
+echo "==> using $GREP"
 
-# Inventory check: every binary listed below must exist.
-must_have=(
-    bin/bash
-    bin/gmake
-    bin/gawk
-    bin/gnused bin/sed
-    bin/gnugrep bin/grep
-    bin/gcc bin/g++
-    bin/ld bin/as bin/ar bin/nm bin/strip
-    bin/tar bin/xz bin/gzip
-)
-echo "==> Inventory check"
-missing=0
-for f in "${must_have[@]}"; do
-    # Some entries are alternatives separated by spaces above — accept any.
-    found=0
-    for cand in $f; do
-        if [ -e "$work/root/$cand" ]; then
-            found=1
-            break
-        fi
-    done
-    if [ $found -eq 0 ]; then
-        echo "  MISSING: any of: $f" >&2
-        missing=1
+bad=0
+for pat in "${forbidden[@]}"; do
+    if hits=$("$GREP" -ralF "$pat" "$work" 2>/dev/null) && [ -n "$hits" ]; then
+        echo "FORBIDDEN: tarball contains '$pat' in:" >&2
+        printf '    %s\n' $hits >&2
+        bad=1
     fi
 done
-if [ $missing -ne 0 ]; then
-    echo "==> tarball is missing required tools" >&2
-    exit 3
+
+if [ "$bad" = 1 ]; then
+    echo "==> tarball is NOT clean" >&2
+    exit 2
 fi
 
-# Narrowed PATH: tarball + system /usr/bin only. Explicitly NOT
-# including /opt/local (which is absent anyway) or
-# /nix/var/nix/profiles/default (which carries the zone's existing
-# nix-store-resolved binaries — we want to test the tarball, not
-# pre-existing state).
-export PATH="$work/root/bin:/usr/bin:/usr/sbin"
-unset LD_LIBRARY_PATH LD_LIBRARY_PATH_64 LD_LIBRARY_PATH_32
-
-echo "==> PATH is: $PATH"
-echo "==> Version checks"
-"$work/root/bin/bash" --version | head -1
-"$work/root/bin/gmake" --version | head -1
-"$work/root/bin/gcc" --version | head -1
-"$work/root/bin/ld" --version 2>&1 | head -1 || true
-
-# Hello-world compile + link via the tarball's gcc.
-src="$work/hello.c"
-cat >"$src" <<'EOF'
-#include <stdio.h>
-int main(void) { printf("hello from tarball\n"); return 0; }
-EOF
-echo "==> compile + link hello.c via $work/root/bin/gcc"
-"$work/root/bin/gcc" -O2 -o "$work/hello" "$src"
-
-echo "==> exec result"
-"$work/hello"
-
-echo "==> ldd of result"
-ldd "$work/hello" | sed 's/^/    /'
-
-# Scan the executed binary for /opt/local literal refs. If any survive
-# at runtime, the binary baked them in via configure-time discovery.
-if strings "$work/hello" | grep -F /opt/local; then
-    echo "FAIL: hello binary contains /opt/local string refs" >&2
-    exit 4
-fi
-echo "==> hello binary has zero /opt/local string refs"
-
-echo "==> ALL CHECKS PASSED"
+echo "==> tarball clean (no forbidden refs across $(find "$work" -type f | wc -l) files)"
