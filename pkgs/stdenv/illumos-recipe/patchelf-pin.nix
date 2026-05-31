@@ -4,13 +4,13 @@
 # illumos-recipe stdenv so every downstream package gets
 # `patchelf --shrink-rpath` applied during fixupPhase.
 #
-# The store path is pinned via builtins.storePath to sidestep the eval-
-# ordering problem (patchelf needs the stdenv to build; the stdenv
-# needs patchelf as an input). Update after a patchelf rebuild:
-#   nix-build -E 'with import ./. {}; patchelf' --no-out-link
-# then paste the result here.
+# The store path is pinned via builtins.storePath (see pins.nix) to
+# sidestep the eval-ordering problem (patchelf needs the stdenv to
+# build; the stdenv needs patchelf as an input). Stage 2 doesn't use
+# this wrapper — it consumes prevStage.patchelf directly.
 {
-  patchelfStorePath ? builtins.storePath /nix/store/1bas7qp8p2slihjzqlabakzrblfl4ms6-patchelf-0.15.2,
+  pins ? import ./pins.nix,
+  patchelfStorePath ? pins.patchelf,
   system ? "x86_64-illumos",
 }:
 derivation {

@@ -205,10 +205,8 @@ in
     stdenv =
       let
         gccIllumos = import ../../development/compilers/gcc-illumos { };
-        # Same scrubbed-gcc storePath strap-tools.nix uses; updating
-        # one requires updating both.
-        gccIllumosScrub =
-          builtins.storePath /nix/store/bzvb3ps82ha7aynf3l38ax77m6q257n3-gcc-illumos-scrubbed;
+        pins = import ./pins.nix;
+        gccIllumosScrub = pins.gccIllumosScrub;
         # Attribute trick: override outPath so `getBin cc` / `${cc}`
         # resolve to the scrubbed driver, while inherited `.lib` keeps
         # pointing at the original (clean) gcc-illumos.lib output for
