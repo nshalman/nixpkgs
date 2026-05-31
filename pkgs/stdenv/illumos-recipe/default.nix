@@ -249,13 +249,6 @@ in
           gzip
           bzip2
         ];
-
-        # Reuse patchelf-pin's setup-hook (registers patchELF as a
-        # fixupOutputHook) but point it at stage-1-built patchelf
-        # instead of the storePath-pinned binary.
-        cleanPatchelf = import ./patchelf-pin.nix {
-          patchelfStorePath = prevStage.patchelf;
-        };
       in
       (import ../generic {
         buildPlatform = localSystem;
@@ -264,8 +257,11 @@ in
 
         preHook = prehookBase;
 
+        # Nixpkgs patchelf already ships the same fixupOutputHook
+        # registration that patchelf-pin reproduces, so we use it
+        # directly here — no pin/wrapper needed at this stage.
         extraNativeBuildInputs = [
-          cleanPatchelf
+          prevStage.patchelf
           ./auto-rpath-hook.sh
         ];
 
