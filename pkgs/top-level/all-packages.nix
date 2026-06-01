@@ -4624,6 +4624,8 @@ with pkgs;
           gnused
           gnugrep
           gnutar
+          gzip
+          bzip2
           diffutils
           patch
           m4
