@@ -79,19 +79,16 @@ let
       + lib.optionalString (lib.versionAtLeast version "1.1.1") ''
         substituteInPlace config --replace '/usr/bin/env' '${buildPackages.coreutils}/bin/env'
       ''
-      # On illumos util/perl/OpenSSL/config.pm has two bugs:
-      # 1. The 64-bit-detection branch shells out to bareword `isainfo`,
-      #    relying on it being on PATH. Our build env has nothing of
-      #    the system's /usr/bin, so isainfo isn't found, the test
-      #    fails, and the script falls through to the 32-bit target —
-      #    which then tries to assemble 32-bit asm (rc4-586.S etc.)
-      #    on a 64-bit toolchain and errors out. Force the absolute
-      #    path (illumos always has /usr/bin/isainfo).
-      # 2. The 32-bit branch then calls bareword `uname('-r')`, but
-      #    POSIX::uname takes no arguments and dies "Usage:
-      #    POSIX::uname()". Rewrite to extract $RELEASE from the
-      #    list return value. The fix only matters when the 64-bit
-      #    branch fails, but is correct unconditionally.
+      # On illumos util/perl/OpenSSL/config.pm has two bugs in its
+      # Solaris/x86 branch:
+      # 1. 64-bit detection shells out to bareword `isainfo`. Our
+      #    stage-3 build env strips /usr/bin, so isainfo isn't found,
+      #    the script falls through to the 32-bit target, and the
+      #    build then fails assembling 32-bit asm (rc4-586.S) on a
+      #    64-bit toolchain. Force the absolute path.
+      # 2. The 32-bit branch calls bareword `uname('-r')`, but
+      #    Perl's POSIX::uname takes no arguments and dies. Rewrite
+      #    to extract $RELEASE from POSIX::uname()'s list return.
       + lib.optionalString (lib.versionAtLeast version "3.0" && stdenv.hostPlatform.isIllumos) ''
         substituteInPlace util/perl/OpenSSL/config.pm \
           --replace-fail "\`isainfo 2>/dev/null | grep amd64\`" \
