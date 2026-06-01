@@ -463,11 +463,16 @@ stdenv.mkDerivation (finalAttrs: {
     LDFLAGS = concatStringsSep " " (map (p: "-L${getLib p}/lib") buildInputs);
     LIBS = "${optionalString (!stdenv.hostPlatform.isDarwin && withLibxcrypt) "-lcrypt"}";
     NIX_LDFLAGS = lib.optionalString (stdenv.cc.isGNU && !stdenv.hostPlatform.isStatic) (
+      # `stdenv.hostPlatform.libc` is `null` on platforms that use the
+      # system libc directly (e.g. illumos via the native libc at
+      # /lib/64). Coerce to a non-string sentinel so the attrset lookup
+      # falls through to the `or ""` default instead of erroring on a
+      # null-to-string coercion.
       {
         "glibc" = "-lgcc_s";
         "musl" = "-lgcc_eh";
       }
-      ."${stdenv.hostPlatform.libc}" or ""
+      ."${toString (stdenv.hostPlatform.libc or "")}" or ""
     );
     # Determinism: We fix the hashes of str, bytes and datetime objects.
     PYTHONHASHSEED = 0;
