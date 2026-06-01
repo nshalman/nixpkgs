@@ -218,26 +218,18 @@ in
       };
   })
 
-  # Stage 2 (clean final): drop strap-tools; rewrap cc + bintools
+  # Stage 2 (clean userland): drop strap-tools; rewrap cc + bintools
   # nativeTools=false against stage-1's nix-built shell / coreutils /
-  # gnugrep / binutils-unwrapped / patchelf. The `cc` arg to
-  # wrapCCWith fakes a multi-output gcc-illumos: `${cc}` resolves to
-  # the scrubbed driver (no proto-strap refs), `getLib cc` resolves
-  # to the original gcc-illumos.lib (libgcc_s + libstdc++, clean).
+  # gnugrep / binutils-unwrapped / patchelf. The cc is the raw
+  # gcc-illumos.out — it still carries proto-strap byte refs in cc1plus
+  # (and via its build inputs), so stage 2 outputs transitively
+  # reference proto-strap. Stage 3 rebuilds gcc-illumos under stage 2's
+  # stdenv (self-host), eliminating those references in its output.
   (prevStage: {
     inherit config overlays;
     stdenv =
       let
         gccIllumos = import ../../development/compilers/gcc-illumos { };
-        pins = import ./pins.nix;
-        gccIllumosScrub = pins.gccIllumosScrub;
-        # Attribute trick: override outPath so `getBin cc` / `${cc}`
-        # resolve to the scrubbed driver, while inherited `.lib` keeps
-        # pointing at the original (clean) gcc-illumos.lib output for
-        # cc_solib / libgcc_s discovery.
-        gccIllumosClean = gccIllumos // {
-          outPath = "${gccIllumosScrub}";
-        };
 
         cleanBintools = prevStage.wrapBintoolsWith {
           bintools = prevStage.binutils-unwrapped;
@@ -247,7 +239,7 @@ in
           nativePrefix = "";
         };
         cleanCC = prevStage.wrapCCWith {
-          cc = gccIllumosClean;
+          cc = gccIllumos;
           bintools = cleanBintools;
           libc = null;
           nativeTools = false;

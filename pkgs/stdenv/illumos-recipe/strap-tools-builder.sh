@@ -4,11 +4,11 @@ mkdir -p "$out/bin" "$out/lib"
 
 # Compiler driver (gcc-illumos).
 for tool in gcc g++ cpp gcov; do
-    if [ -e "$gccIllumos/bin/$tool" ]; then
-        ln -s "$gccIllumos/bin/$tool" "$out/bin/$tool"
+    if [ -e "$gccIllumosOut/bin/$tool" ]; then
+        ln -s "$gccIllumosOut/bin/$tool" "$out/bin/$tool"
     fi
 done
-ln -s "$gccIllumos/bin/gcc" "$out/bin/cc"
+ln -s "$gccIllumosOut/bin/gcc" "$out/bin/cc"
 
 # Expose gcc-illumos's libgcc_s / libstdc++ so cc-wrapper's $out/lib
 # resolves them. Libs live in the `lib` output (separate from compiler).
@@ -16,24 +16,34 @@ for f in "$gccIllumosLib"/lib/amd64/*; do
     [ -e "$f" ] && ln -s "$f" "$out/lib/$(basename "$f")"
 done
 
-# GNU as + GNU binutils from binutils-illumos (the Phase-4-built
-# clean binutils 2.44). EXCEPT for ld: we want Sun ld (illumos
-# /usr/bin/ld) by default because gcc-illumos was
-# --with-ld=/usr/bin/ld; gcc-driven links go straight to Sun ld
-# regardless of what's in PATH, so making strap-tools/bin/ld also
-# point at Sun ld keeps a single ld used everywhere AND keeps the
-# bintools-wrapper auto-rpath logic working (Sun ld accepts -rpath as
-# a synonym for -R). binutils-illumos's ld.bfd remains available as
-# `ld.bfd` and `ld.gnu` for code that explicitly wants GNU ld.
+# GNU as + GNU binutils from proto-strap (SmartOS strap-cache).
+# proto-strap ships them under usr/gnu/bin/ with a `g` prefix
+# (gas, gar, gld, gnm, ...). Strip the prefix when symlinking so
+# wrappers see standard tool names.
+#
+# ld is the exception: we want Sun ld (illumos /usr/bin/ld) by
+# default because gcc-illumos was configured --with-ld=/usr/bin/ld;
+# gcc-driven links go straight to Sun ld regardless of what's in
+# PATH, so making strap-tools/bin/ld also point at Sun ld keeps a
+# single ld used everywhere AND keeps the bintools-wrapper
+# auto-rpath logic working (Sun ld accepts -rpath as a synonym for
+# -R). proto-strap's gld remains available as `ld.bfd` / `ld.gnu`
+# for code that explicitly wants GNU ld.
+#
+# Caveat: proto-strap's binutils were built by SmartOS's pkgsrc and
+# carry /opt/local/lib in DT_RUNPATH. Stage 0/1 outputs that link
+# via these tools inherit the reference. Stage 2 builds binutils
+# fresh and stage 3 drops strap-tools entirely; stage 3+ closures
+# are clean.
 for tool in addr2line ar as c++filt elfedit nm objcopy objdump ranlib readelf size strings strip; do
-    target="$binutilsIllumos/bin/$tool"
+    target="$protoStrapPath/usr/gnu/bin/g$tool"
     if [ -e "$target" ]; then
         ln -s "$target" "$out/bin/$tool"
     fi
 done
 ln -s /usr/bin/ld "$out/bin/ld"
-[ -e "$binutilsIllumos/bin/ld.bfd" ] && ln -s "$binutilsIllumos/bin/ld.bfd" "$out/bin/ld.bfd"
-[ -e "$binutilsIllumos/bin/ld.bfd" ] && ln -s "$binutilsIllumos/bin/ld.bfd" "$out/bin/ld.gnu"
+[ -e "$protoStrapPath/usr/gnu/bin/gld.bfd" ] && ln -s "$protoStrapPath/usr/gnu/bin/gld.bfd" "$out/bin/ld.bfd"
+[ -e "$protoStrapPath/usr/gnu/bin/gld.bfd" ] && ln -s "$protoStrapPath/usr/gnu/bin/gld.bfd" "$out/bin/ld.gnu"
 
 # pkgsrc (GNU-flavored) tools — taken FIRST so that GNU versions win over
 # illumos /usr/bin SUS-flavored ones (illumos xargs has no -r, illumos

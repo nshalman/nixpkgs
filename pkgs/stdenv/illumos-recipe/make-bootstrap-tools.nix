@@ -28,19 +28,21 @@ let
   inherit (pkgs.buildPackages) dumpnar rsync;
 
   # gcc-illumos isn't wired into all-packages.nix yet; import directly.
-  # Used only for `.lib` (libgcc_s + libstdc++) — the `out` driver is
-  # picked up via the scrubbed pin below, not from this import.
+  # The freestanding import builds with proto-strap as host compiler,
+  # so the resulting .out transitively references proto-strap. For a
+  # truly clean bootstrap-tools tarball we want stage-3's self-rebuilt
+  # gcc-illumos, but stage-3's gcc-illumos isn't exposed via pkgs.* —
+  # plumbing that through all-packages.nix is its own piece of work.
+  # Until then, this tarball is "build-time honest" (proto-strap shows
+  # up as a build input transitively) but Phase 5 work has been
+  # consuming the stage-3 toolchain via pkgs.stdenv anyway.
   gcc-illumos = import ../../development/compilers/gcc-illumos { };
 
-  # Pinned storePaths shared with strap-tools.nix and stage 2 (see
-  # ./pins.nix). We deliberately don't `import ../../development/compilers/
-  # gcc-illumos-scrub { }` here: that file's defaults pull pkgs.python3
-  # (for the scrubbing builder), which evaluates the cpython expression
-  # — currently fails on illumos because stdenv.hostPlatform.libc = null.
-  # The pin is the already-built artifact, no rebuild triggered at eval.
-  pins = import ./pins.nix;
-  gcc-illumos-scrubbed = pins.gccIllumosScrub;
-  binutils-illumos = pins.binutilsIllumos;
+  # Binutils for the tarball comes from the package set. Pre-pin
+  # removal this was a builtins.storePath pin (chjhxnwkp...-binutils-
+  # 2.44); now we use whatever stage 4's pkgs resolves to, which on
+  # illumos-recipe is the stage-2-built clean binutils-unwrapped.
+  binutils-illumos = pkgs.binutils-unwrapped;
 
   # Use rsync for the closure copy, consistent with make-zone-image.nix
   # and make-zone-root.nix. rsync -a preserves modes (including the
@@ -138,12 +140,11 @@ rec {
       zlib
       zlib.dev
 
-      # Toolchain — scrubbed gcc-illumos.out (proto-strap refs neutralized;
-      # see ./pins.nix and pkgs/development/compilers/gcc-illumos-scrub),
-      # original gcc-illumos.lib (already clean; closure = self), plus
-      # binutils-illumos for gas / GNU binutils (ld, ld.bfd, ld.gold, as,
-      # ar, nm, ...). Sun ld is the system /usr/bin/ld, not packaged.
-      gcc-illumos-scrubbed
+      # Toolchain — gcc-illumos.out (driver), gcc-illumos.lib
+      # (libgcc_s + libstdc++), plus binutils-unwrapped for gas /
+      # GNU binutils (ld, ld.bfd, ld.gold, as, ar, nm, ...). Sun ld
+      # is the system /usr/bin/ld, not packaged.
+      gcc-illumos.out
       gcc-illumos.lib
       binutils-illumos
 
