@@ -23,6 +23,16 @@ stdenv.mkDerivation (finalAttrs: {
 
   nativeBuildInputs = [ autoreconfHook ];
 
+  # libmd's HAVE_LINKER_VERSION_SCRIPT=no branch (Sun ld on illumos)
+  # uses libtool `-export-symbols libmd.sym`, which libtool translates
+  # to GNU-ld `-Wl,-retain-symbols-file -Wl,libmd.sym`. Sun ld errors
+  # out. Drop the flag; libmd exports everything, which is fine for
+  # our consumers. Same pattern as gettext/jq/libcpuid.
+  postPatch = lib.optionalString stdenv.hostPlatform.isIllumos ''
+    substituteInPlace src/Makefile.am \
+      --replace-fail "-export-symbols libmd.sym" ""
+  '';
+
   meta = {
     homepage = "https://www.hadrons.org/software/libmd/";
     changelog = "https://archive.hadrons.org/software/libmd/libmd-${finalAttrs.version}.announce";
