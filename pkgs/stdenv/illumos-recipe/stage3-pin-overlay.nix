@@ -49,7 +49,7 @@ _self: _super: {
   diffutils          = mkPin1 "diffutils-3.12"         /nix/store/5fr7hvvhmn545wjkbl45h7z971m6q89z-diffutils-3.12;
   patch              = mkPin1 "patch-2.8"              /nix/store/qc1g4kdb346p32p484kg9cykrbb9p3rw-patch-2.8;
   gzip               = mkPin1 "gzip-1.14"              /nix/store/53cbbmykmv1jyrrfbacz5jw4rminl6ys-gzip-1.14;
-  patchelf           = mkPin1 "patchelf-0.15.2"        /nix/store/6k85qdya6iasxd5dap9gsjqgpw3viy7z-patchelf-0.15.2;
+  patchelf           = mkPin1 "patchelf-0.15.2"        /nix/store/50f19gj83h6iihqaq1cyd9jw243kbr6c-patchelf-0.15.2;
 
   xz = mkPin "xz-5.8.3" {
     out = /nix/store/496mjmfqlzh2i8688sjj57vn122vr7a1-xz-5.8.3-bin;
