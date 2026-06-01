@@ -20,11 +20,14 @@
 stripIllumosLibtoolFlags() {
     if [ -z "${stripIllumosLibtoolFlags_done:-}" ]; then
         stripIllumosLibtoolFlags_done=1
-        # -L follow symlinks (autotools sometimes drops .am as a link
-        # next to .in). 2>/dev/null because the find runs early in
-        # builds where some directories aren't readable yet.
+        # Only touch the post-autoconf forms (Makefile, Makefile.in).
+        # Modifying Makefile.am updates its mtime relative to
+        # Makefile.in, which triggers automake regeneration during
+        # `make` — and automake isn't on every build's PATH (e.g.
+        # libxcrypt). Makefile.in is what configure consumed; Makefile
+        # is what make reads. Strip from both, leave .am alone.
         find -L . -type f \
-            \( -name 'Makefile' -o -name 'Makefile.in' -o -name 'Makefile.am' \) \
+            \( -name 'Makefile' -o -name 'Makefile.in' \) \
             -print0 2>/dev/null \
           | xargs -0 -r perl -i -pe '
               s/\s*-export-symbols-regex\s+\S+//g;
