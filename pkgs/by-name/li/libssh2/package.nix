@@ -38,9 +38,10 @@ stdenv.mkDerivation rec {
   # to Sun ld via --with-ld=/usr/bin/ld which rejects the .exp file.
   # Drop the regex; libssh2 exports everything (consumers only
   # reference libssh2_* anyway). Same pattern as gettext/jq/libcpuid/
-  # libmd.
+  # libmd, but libssh2 doesn't use autoreconfHook so we also need to
+  # patch the shipped Makefile.in directly.
   + lib.optionalString stdenv.hostPlatform.isIllumos ''
-    substituteInPlace src/Makefile.am \
+    substituteInPlace src/Makefile.am src/Makefile.in \
       --replace-fail "-export-symbols-regex '^libssh2_.*'" ""
   '';
 
