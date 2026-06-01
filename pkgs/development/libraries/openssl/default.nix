@@ -79,6 +79,17 @@ let
       + lib.optionalString (lib.versionAtLeast version "1.1.1") ''
         substituteInPlace config --replace '/usr/bin/env' '${buildPackages.coreutils}/bin/env'
       ''
+      # On illumos util/perl/OpenSSL/config.pm calls bareword
+      # `uname('-r')`, expecting it to behave like Perl's POSIX::uname
+      # — but that function takes no arguments and dies with
+      # "Usage: POSIX::uname()". The expression is only reached when
+      # the 64-bit detection earlier (which shells out to isainfo)
+      # fails, so it also bites whenever isainfo isn't on PATH. Rewrite
+      # the call to extract $RELEASE from POSIX::uname()'s list result.
+      + lib.optionalString (lib.versionAtLeast version "3.0" && stdenv.hostPlatform.isIllumos) ''
+        substituteInPlace util/perl/OpenSSL/config.pm \
+          --replace-fail "uname('-r')" "(POSIX::uname())[2]"
+      ''
       + lib.optionalString (lib.versionAtLeast version "1.1.1" && stdenv.hostPlatform.isMusl) ''
         substituteInPlace crypto/async/arch/async_posix.h \
           --replace '!defined(__ANDROID__) && !defined(__OpenBSD__)' \
