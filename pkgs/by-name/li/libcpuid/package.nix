@@ -18,6 +18,16 @@ stdenv.mkDerivation rec {
 
   nativeBuildInputs = [ autoreconfHook ];
 
+  # libtool translates -export-symbols into -Wl,-retain-symbols-file
+  # (GNU-ld syntax) even when configure detects Sun ld. gcc-illumos
+  # invokes Sun ld via baked-in --with-ld=/usr/bin/ld and errors on
+  # the .sym file. Drop the regex / file on illumos; the library will
+  # export everything, which is fine for our consumers.
+  postPatch = lib.optionalString stdenv.hostPlatform.isIllumos ''
+    substituteInPlace libcpuid/Makefile.am \
+      --replace-fail "-export-symbols \$(srcdir)/libcpuid.sym" ""
+  '';
+
   meta = {
     homepage = "https://libcpuid.sourceforge.net/";
     description = "Small C library for x86 CPU detection and feature extraction";
