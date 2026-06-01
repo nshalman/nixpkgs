@@ -32,6 +32,16 @@ stdenv.mkDerivation rec {
   # necessary for FreeBSD code path in configure
   postPatch = ''
     substituteInPlace ./config.guess --replace-fail /usr/bin/uname uname
+  ''
+  # libtool turns -export-symbols-regex into GNU-ld
+  # -Wl,-retain-symbols-file -Wl,libssh2.exp, but gcc-illumos passes
+  # to Sun ld via --with-ld=/usr/bin/ld which rejects the .exp file.
+  # Drop the regex; libssh2 exports everything (consumers only
+  # reference libssh2_* anyway). Same pattern as gettext/jq/libcpuid/
+  # libmd.
+  + lib.optionalString stdenv.hostPlatform.isIllumos ''
+    substituteInPlace src/Makefile.am \
+      --replace-fail "-export-symbols-regex '^libssh2_.*'" ""
   '';
 
   outputs = [

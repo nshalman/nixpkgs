@@ -41,6 +41,21 @@ stdenv.mkDerivation (finalAttrs: {
     ./77-Use-a-dedicated-node-type-to-maintain-the-list-of-cached-rv-ts.patch
   ];
 
+  # libxslt's configure probes `$LD --help` to pick a version-script
+  # syntax. On illumos $LD is cc-wrapper's GNU-ld wrapper (reports
+  # "--version-script" supported), but gcc-illumos actually invokes
+  # Sun ld via baked-in --with-ld=/usr/bin/ld and chokes on the
+  # resulting `-Wl,--version-script=libxslt.syms`. The Sun-ld branch
+  # would emit `-Wl,-M -Wl,libxslt.syms` but Sun ld's -M expects a
+  # mapfile, not the GNU version-script format of libxslt.syms.
+  # Force VERSION_SCRIPT_FLAGS=none so the library compiles without
+  # symbol versioning; downstream consumers don't rely on it.
+  postPatch = lib.optionalString stdenv.hostPlatform.isIllumos ''
+    substituteInPlace configure.ac \
+      --replace-fail 'if $LD --help 2>&1 | grep "version-script" >/dev/null 2>/dev/null; then' \
+                     'if false; then'
+  '';
+
   strictDeps = true;
 
   nativeBuildInputs = [
