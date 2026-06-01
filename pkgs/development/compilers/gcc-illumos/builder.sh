@@ -83,6 +83,20 @@ patch -d "$srcdir" -p1 < "$patchFile"
 # binaries find their libs in $out first.
 sed -i -e "s|@NIX_GCC_PREFIX@|$lib|g" "$srcdir/gcc/config/sol2.h"
 
+# libgomp/Makefile.in has the Sun-ld versioned-shlib rule:
+#   libgomp.ver-sun : libgomp.ver \
+#                     $(top_srcdir)/../contrib/make_sunver.pl \
+#                     $(libgomp_la_OBJECTS) $(libgomp_la_LIBADD)
+# On illumos $(libgomp_la_LIBADD) expands to `-ldl` (libgomp's configure
+# sets DL_LIBS=-ldl because dlsym lives in libdl). make then treats -ldl
+# as a filename prereq and dies with "no rule to make target '-ldl'".
+# Strip $(libgomp_la_LIBADD) from the prereq list; the recipe body still
+# references it (the make_sunver.pl invocation reads it for .la→.a path
+# rewrites — `-l*` args are silently ignored there).
+sed -i \
+  -e '/^\(@LIBGOMP_BUILD_VERSIONED_SHLIB[^@]*@\)\+libgomp\.ver-sun *:/,/^[^@\t ]/{ s/\$(libgomp_la_OBJECTS) \$(libgomp_la_LIBADD)/$(libgomp_la_OBJECTS)/; }' \
+  "$srcdir/libgomp/Makefile.in"
+
 # Configure in a separate build directory (required by gcc build system).
 #
 # --disable-bootstrap: skip GCC's 3-stage self-host. If the host
