@@ -1,40 +1,32 @@
-# strap-tools: assembles gcc-illumos + binutils-illumos + host
+# strap-tools: assembles gcc-illumos + GNU binutils + host
 # /usr/bin tools + /opt/local/bin (gmake, patch, ...) into a single
 # `$out/bin` directory. Used as `nativePrefix` for the cc-wrapper /
 # bintools-wrapper at stage 0 of pkgs/stdenv/illumos-recipe.
 #
 # Impurity is intentional for stage 0: /usr/bin and /opt/local are
-# symlinked, not copied. The plan in SMARTOS_RECIPE_ROADMAP.md Phase 4
-# replaces these with a nix-built bootstrap-tools tarball.
+# symlinked, not copied. Stages 0/1 outputs transitively reference
+# proto-strap (whose pkgsrc-built binutils carry /opt/local in
+# DT_RUNPATH) and /opt/local itself. Stage 2 rebuilds with nix-built
+# userland and drops strap-tools entirely; stage 3 rebuilds the
+# toolchain itself. Stage 3+ outputs are clean of both.
 #
-# binutils is taken via builtins.storePath to sidestep the eval-
-# ordering problem (binutils-unwrapped needs the package set, but
-# strap-tools is constructed before the package set exists). The
-# pinned path is the output of the Phase-4-built binutils-illumos —
-# update it after any binutils rebuild (`nix-build -E 'with import
-# ./. {}; binutils-unwrapped'` produces it; eval it then update the
-# default).
+# GNU binutils source: proto-strap ships them under `usr/gnu/bin/`
+# with a `g` prefix (gas, gld, gar, gnm, ...). The builder strips
+# the prefix when symlinking into strap-tools/bin so wrappers see
+# standard names. ld is the exception — we use Sun ld at /usr/bin/ld
+# because gcc-illumos was configured with --with-ld=/usr/bin/ld and
+# bypasses the wrapped ld in PATH anyway.
 {
   gccIllumos ? import ../../development/compilers/gcc-illumos { },
-  # Use the scrubbed .out so consumers do not transitively pull
-  # proto-strap (~841 MB) via byte string refs embedded in the
-  # compiler driver. gccIllumos.lib stays untouched: it carries no
-  # proto-strap refs and is shared by both variants. The scrub is
-  # pinned via builtins.storePath because gcc-illumos-scrub takes
-  # `pkgs ? import ../../../.. { }` (to pull python3 + gnugrep),
-  # which causes infinite recursion when evaluated as part of the
-  # stdenv used to construct that very `pkgs`. See pins.nix for the
-  # rebuild recipe.
-  pins ? import ./pins.nix,
-  gccIllumosScrub ? pins.gccIllumosScrub,
-  binutilsIllumos ? pins.binutilsIllumos,
+  protoStrap ? import ../../development/compilers/proto-strap { },
   system ? "x86_64-illumos",
 }:
 derivation {
   name = "illumos-strap-tools";
-  inherit system binutilsIllumos;
-  gccIllumos = gccIllumosScrub;
+  inherit system;
+  gccIllumosOut = gccIllumos.out;
   gccIllumosLib = gccIllumos.lib;
+  protoStrapPath = "${protoStrap}";
   builder = "/usr/bin/bash";
   args = [ ./strap-tools-builder.sh ];
   PATH = "/usr/bin:/usr/sbin";
