@@ -1,4 +1,4 @@
-# Stdenv for x86_64-illumos. 4-stage chain.
+# Stdenv for x86_64-illumos. 5-stage chain.
 #
 # Stage 0 wraps the strap-tools tree (gcc-illumos + binutils-illumos
 # + host /usr/bin + /opt/local shell utilities) with cc-wrapper and
@@ -24,8 +24,15 @@
 # gcc-illumos rebuilt under stage 2's clean stdenv (no scrub needed),
 # and the userland is rebuilt by the same. Build-time .drv graph at
 # this stage has zero strap-tools / proto-strap provenance. This is
-# the layer intended to populate zone images and a future bootstrap
-# tarball.
+# the layer that populates zone images and a future bootstrap tarball.
+#
+# Stage 4 (illumos tooling layer) wraps stage 3 with two host-env
+# workarounds: /usr/bin on PATH (for isainfo/print/uname/…) and a
+# preBuild hook that strips GNU-ld-only symbol-filtering flags from
+# Makefile* (Sun ld doesn't accept them; libtool generates them
+# anyway). With stage 3 pinned via stage3-pin-overlay.nix, only stage
+# 4 and downstream pkgs.* rebuild when this layer's tooling changes —
+# the long-tail gcc-illumos compile stays put.
 #
 # strap-tools sources its binutils from binutils-illumos (a clean,
 # Phase-4-built /opt/local-free output) rather than proto-strap's
@@ -349,6 +356,93 @@ in
         extraNativeBuildInputs = [
           prevStage.patchelf
           ./auto-rpath-hook.sh
+        ];
+
+        initialPath = cleanPath;
+        fetchurlBoot = prevStage.fetchurl;
+        shell = "${prevStage.bashNonInteractive}/bin/bash";
+        cc = cleanCC;
+        inherit config;
+        overrides = self: super: { inherit (prevStage) fetchurl; };
+      })
+      // {
+        inherit (prevStage) fetchurl;
+      };
+  })
+
+  # Stage 4 (tooling layer): stage 3 stdenv plus systemic workarounds
+  # for illumos host environment. Lives above stage 3 so the pin
+  # overlay (stage3-pin-overlay.nix) keeps the heavy chain — bash,
+  # coreutils, gcc-illumos, binutils — frozen while we iterate on
+  # what tooling downstream package builds need.
+  #
+  # What it adds vs stage 3:
+  #   1. /usr/bin on PATH so configure scripts find illumos system
+  #      utilities (isainfo, print, uname, …) without per-package
+  #      absolute-path patches.
+  #   2. strip-illumos-libtool-flags-hook.sh: a preBuild hook that
+  #      removes GNU-ld-only symbol-filtering flags from Makefile*
+  #      (-export-symbols, --version-script, -retain-symbols-file).
+  #      Sun ld can't parse them; libtool generates them anyway when
+  #      a project uses -export-symbols-* in libtool LDFLAGS.
+  #
+  # Stage 4 reuses everything else from stage 3 — same cc (clean
+  # gcc-illumos via prevStage), same bintools, same userland. Building
+  # stage 4 stdenv itself is cheap (just a wrap-cc / wrap-bintools
+  # cycle); the cost is that every downstream package now has a new
+  # drv hash that includes the strip hook + extended PATH.
+  (prevStage: {
+    inherit config overlays;
+    stdenv =
+      let
+        cleanBintools = prevStage.wrapBintoolsWith {
+          bintools = prevStage.binutils-unwrapped;
+          libc = null;
+          nativeTools = false;
+          nativeLibc = true;
+          nativePrefix = "";
+        };
+        cleanCC = prevStage.wrapCCWith {
+          cc = prevStage.gcc-illumos;
+          bintools = cleanBintools;
+          libc = null;
+          nativeTools = false;
+          nativeLibc = true;
+          nativePrefix = "";
+          isGNU = true;
+        };
+        cleanPath = with prevStage; [
+          bash
+          coreutils
+          findutils
+          gnutar
+          gnused
+          gnugrep
+          gawk
+          gnumake
+          diffutils
+          patch
+          xz
+          gzip
+          bzip2
+        ];
+      in
+      (import ../generic {
+        buildPlatform = localSystem;
+        hostPlatform = localSystem;
+        targetPlatform = localSystem;
+
+        preHook = prehookCommon + ''
+          # Append illumos system utilities. These are host-system
+          # absolute paths (no nix-store references), so they don't
+          # affect closure cleanliness.
+          export PATH="$PATH:/usr/bin:/usr/sbin"
+        '';
+
+        extraNativeBuildInputs = [
+          prevStage.patchelf
+          ./auto-rpath-hook.sh
+          ./strip-illumos-libtool-flags-hook.sh
         ];
 
         initialPath = cleanPath;
