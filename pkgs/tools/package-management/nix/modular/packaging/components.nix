@@ -164,6 +164,14 @@ let
       let
         interpositionFlags = [
           "-fno-semantic-interposition"
+        ]
+        # `-Wl,-Bsymbolic-functions` is a GNU-ld-only flag. gcc-illumos
+        # invokes Sun ld via baked-in --with-ld=/usr/bin/ld and errors
+        # out with "option -B has illegal argument 'symbolic-functions'".
+        # The performance benefit (-fno-semantic-interposition lets GCC
+        # inline across shared-library boundaries) is preserved without
+        # the link-time flag.
+        ++ lib.optionals (!stdenv.hostPlatform.isIllumos) [
           "-Wl,-Bsymbolic-functions"
         ];
       in
