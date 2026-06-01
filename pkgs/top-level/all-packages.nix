@@ -4614,6 +4614,16 @@ with pkgs;
           binPath = "${stdenv.cc.cc}/bin";
           gasPath = "${binutils-unwrapped}/bin/as";
         };
+        # /usr/bin is appended as a literal host-system fallback. gcc-14
+        # subdir configure scripts (e.g. libgomp) generate libtool whose
+        # `${ECHO}` macro expands to `print -r --` when configure detects
+        # ksh-style print is available (it is, because /bin/sh on illumos
+        # is ksh93 and configure inherits from it). Later make invocations
+        # spawn that libtool under bash, and bash has no `print` builtin —
+        # so it tries to exec a `print` program from PATH. /usr/bin/print
+        # is a real binary on illumos that does what ksh's print does.
+        # Adding /usr/bin as a fallback restores it without polluting the
+        # output closure (host-system paths aren't nix references).
         extraHostPath = lib.makeBinPath [
           binutils-unwrapped
           bash
@@ -4633,7 +4643,7 @@ with pkgs;
           bison
           # gcc-14's libssp generates ssp.map-sun via a perl one-liner.
           perl
-        ];
+        ] + ":/usr/bin";
         system = stdenv.hostPlatform.system;
       }
     else
