@@ -4631,6 +4631,8 @@ with pkgs;
           m4
           flex
           bison
+          # gcc-14's libssp generates ssp.map-sun via a perl one-liner.
+          perl
         ];
         system = stdenv.hostPlatform.system;
       }
