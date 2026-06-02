@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 #
-# Build, audit, and (optionally) upload the bootstrap-tools v2 closure
-# (bd nix-pb0.2).
+# Build and audit the bootstrap-tools v2 closure (bd nix-pb0.2).
 #
-# Produces, under ./result/on-server/:
+# Produces, under ./result/on-server/ (symlinks into /nix/store):
 #   closure.nar.xz       xz-compressed NAR of the stage-3 closure
 #                        (payload layout: nix/store/<each>/... +
 #                        nix-path-registration)
 #   closure-roots.txt    explicit GC roots (bootstrap-tools-packages)
+#
+# This script does NOT upload anything anywhere. After a clean run it
+# prints the absolute store paths + sha256s of both artifacts; the
+# operator scp-s them to wherever they're being hosted. Automating
+# pushes to a public web server from a build script is a foot-gun
+# we deliberately don't ship.
 #
 # Precondition for fast & wedge-free operation: the stage-3 stdenv
 # outputs that bootstrap-tools-packages references must already be in
@@ -18,38 +23,29 @@
 #
 # Usage:
 #   build-bootstrap-closure.sh [-C <nixpkgs-dir>] [-j <jobs>]
-#                              [--upload-host <user@host>]
-#                              [--upload-path <remote-dir>]
 #                              [--max-retries <n>]
 #
 # Env defaults (override via flags):
-#   NIXPKGS_DIR     /tmp/nixpkgs    (or first git-checkout found)
+#   NIXPKGS_DIR     /tmp/nixpkgs
 #   NIX_JOBS        8
 #   MAX_RETRIES     4
-#   UPLOAD_HOST     ""             (unset = skip upload)
-#   UPLOAD_PATH     /var/www/files/v2
 #
 # Exit codes:
-#   0 — closure built, audit clean, upload (if requested) succeeded
+#   0 — closure built and audit clean
 #   1 — usage / precondition failure
 #   2 — audit found forbidden refs
 #   3 — build failed after all retries
-#   4 — upload failed
 
 set -euo pipefail
 
 NIXPKGS_DIR=${NIXPKGS_DIR:-/tmp/nixpkgs}
 NIX_JOBS=${NIX_JOBS:-8}
 MAX_RETRIES=${MAX_RETRIES:-4}
-UPLOAD_HOST=${UPLOAD_HOST:-}
-UPLOAD_PATH=${UPLOAD_PATH:-/var/www/files/v2}
 
 while [ $# -gt 0 ]; do
     case "$1" in
         -C)              NIXPKGS_DIR="$2";  shift 2 ;;
         -j)              NIX_JOBS="$2";     shift 2 ;;
-        --upload-host)   UPLOAD_HOST="$2";  shift 2 ;;
-        --upload-path)   UPLOAD_PATH="$2";  shift 2 ;;
         --max-retries)   MAX_RETRIES="$2";  shift 2 ;;
         -h|--help)       sed -n '2,/^set -euo/p' "$0" | sed '/^set -euo/d' ; exit 0 ;;
         *) echo "unknown arg: $1" >&2; exit 1 ;;
@@ -132,23 +128,25 @@ SIZE_NAR=$(stat -c '%s' "$NAR" 2>/dev/null || /usr/bin/stat -f '%z' "$NAR")
 SIZE_ROOTS=$(stat -c '%s' "$ROOTS" 2>/dev/null || /usr/bin/stat -f '%z' "$ROOTS")
 cat <<EOF
     closure.nar.xz
+      path:   $NAR
       sha256: $SHA_NAR
       size:   $SIZE_NAR bytes
     closure-roots.txt
+      path:   $ROOTS
       sha256: $SHA_ROOTS
       size:   $SIZE_ROOTS bytes
 EOF
 
-# --- upload (optional) -------------------------------------------------------
-if [ -n "$UPLOAD_HOST" ]; then
-    echo "==> uploading to ${UPLOAD_HOST}:${UPLOAD_PATH}/"
-    if ! rsync -avL "$NAR" "$ROOTS" "${UPLOAD_HOST}:${UPLOAD_PATH}/"; then
-        echo "==> upload FAILED" >&2
-        exit 4
-    fi
-    echo "==> upload done"
-else
-    echo "==> UPLOAD_HOST unset — leaving artifacts in place"
-fi
+# Both result/on-server/* entries are symlinks into /nix/store; scp -L
+# (follow symlinks) reads the actual file contents.
+cat <<EOF
+
+==> to copy to another host:
+    scp -L "$NAR" "$ROOTS" <dest>:<path>/
+
+==> or pull from your workstation:
+    scp -L <user>@<this-host>:$NAR <local>/
+    scp -L <user>@<this-host>:$ROOTS <local>/
+EOF
 
 echo "==> done"
