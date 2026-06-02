@@ -19,8 +19,9 @@
 #
 # After that, `nix-build`/`nix-store --realise` work. Builds that need
 # stage-0 stdenv (bash, coreutils, gcc-illumos, binutils-illumos, ...)
-# fetch bootstrap-tools.tar.xz over HTTP per pkgs/stdenv/illumos/
-# bootstrap-files/x86_64-illumos.nix; no /opt/local needed.
+# fetch the closure.nar.xz over HTTP per pkgs/stdenv/illumos-recipe/
+# bootstrap-files/x86_64-illumos.nix and load it with the sibling
+# load-illumos-closure.sh; no /opt/local needed.
 #
 # Iteration 1 scope: single-user, no substituters, no /etc/passwd or
 # /etc/profile shipped (the zone root those things live in is assembled
