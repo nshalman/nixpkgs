@@ -43,16 +43,20 @@ let
   inherit (pkgs) runCommand closureInfo lib;
   inherit (pkgs.buildPackages) dumpnar rsync xz;
 
-  # gcc-illumos isn't wired into all-packages.nix yet; import directly.
-  # The freestanding import builds with proto-strap as host compiler,
-  # so the resulting .out transitively references proto-strap. For a
-  # truly clean bootstrap closure we want stage-3's self-rebuilt
-  # gcc-illumos, but stage-3's gcc-illumos isn't exposed via pkgs.* —
-  # plumbing that through all-packages.nix is its own piece of work.
-  # Until then, this closure is "build-time honest" (proto-strap shows
-  # up as a build input transitively) but Phase 5 work has been
-  # consuming the stage-3 toolchain via pkgs.stdenv anyway.
-  gcc-illumos = import ../../development/compilers/gcc-illumos { };
+  # Use the cc that actually backs `pkgs.stdenv` — i.e. the stage-3
+  # self-host gcc-illumos, the same derivation that built every other
+  # path in this closure. Picking it here keeps the bootstrap-tools
+  # closure self-consistent (one compiler at the bottom of the graph)
+  # and ensures the closure pack is a no-op on any host that already
+  # has stage 3 cached. Picking `pkgs.gcc-illumos` instead would be a
+  # tier-up rebuild (gcc-illumos built using stage 4's cc as host) —
+  # also clean, but requires an autoconf-heavy ~30-60 min rebuild not
+  # already in the store. Earlier revisions used a freestanding
+  # `import ../../development/compilers/gcc-illumos { }`, which
+  # defaults `host` to a fresh proto-strap import and drags proto-strap
+  # (with its /opt/local refs and /usr/gcc/10 RUNPATH) into the
+  # closure — caught by audit.nix.
+  gcc-illumos = pkgs.stdenv.cc.cc;
 
   # Binutils for the closure comes from the package set. Pre-pin removal
   # this was a builtins.storePath pin (chjhxnwkp...-binutils-2.44); now
