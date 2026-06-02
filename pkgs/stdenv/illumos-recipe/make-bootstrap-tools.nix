@@ -43,20 +43,54 @@ let
   inherit (pkgs) runCommand closureInfo lib;
   inherit (pkgs.buildPackages) dumpnar rsync xz;
 
-  # Use the cc that actually backs `pkgs.stdenv` — i.e. the stage-3
-  # self-host gcc-illumos, the same derivation that built every other
-  # path in this closure. Picking it here keeps the bootstrap-tools
-  # closure self-consistent (one compiler at the bottom of the graph)
-  # and ensures the closure pack is a no-op on any host that already
-  # has stage 3 cached. Picking `pkgs.gcc-illumos` instead would be a
-  # tier-up rebuild (gcc-illumos built using stage 4's cc as host) —
-  # also clean, but requires an autoconf-heavy ~30-60 min rebuild not
-  # already in the store. Earlier revisions used a freestanding
-  # `import ../../development/compilers/gcc-illumos { }`, which
-  # defaults `host` to a fresh proto-strap import and drags proto-strap
-  # (with its /opt/local refs and /usr/gcc/10 RUNPATH) into the
-  # closure — caught by audit.nix.
-  gcc-illumos = pkgs.stdenv.cc.cc;
+  # Use `gcc-illumos-bootstrap` — a `gcc-illumos` variant configured
+  # with `--enable-bootstrap` (GCC's internal 3-stage self-build).
+  # Without bootstrap, gcc-illumos's xgcc/cc1/cc1plus inherit a RUNPATH
+  # entry pointing back at the host gcc-illumos's $out/lib/amd64 —
+  # which transitively drags proto-strap into the closure (the chain is
+  # this-build → host → … → proto-strap). With bootstrap, the final
+  # stage's binaries are linked by the new compiler itself; RUNPATH
+  # only references the new build's own `.lib`. SmartOS-extra's
+  # canonical /usr/gcc/N build does the same — we had quietly diverged
+  # when `--disable-bootstrap` was added to save build time on a 32 GB
+  # host. Switching the stdenv-chain default to `--enable-bootstrap`
+  # is deferred to a separate task; here we use a parallel package so
+  # the closure-export is clean without disturbing stage 0–4.
+  #
+  # `coresCap = 2` keeps make's `-j` capped so the stage-3 link burst
+  # doesn't OOM smaller build hosts.
+  gcc-illumos = import ../../development/compilers/gcc-illumos-bootstrap {
+    host = {
+      binPath = "${pkgs.stdenv.cc.cc}/bin";
+      gasPath = "${pkgs.binutils-unwrapped}/bin/as";
+    };
+    extraHostPath =
+      lib.makeBinPath (
+        with pkgs;
+        [
+          binutils-unwrapped
+          bash
+          coreutils
+          findutils
+          gnumake
+          gawk
+          gnused
+          gnugrep
+          gnutar
+          gzip
+          bzip2
+          diffutils
+          patch
+          m4
+          flex
+          bison
+          perl
+        ]
+      )
+      + ":/usr/bin";
+    coresCap = 2;
+    system = "x86_64-illumos";
+  };
 
   # Binutils for the closure comes from the package set. Pre-pin removal
   # this was a builtins.storePath pin (chjhxnwkp...-binutils-2.44); now
