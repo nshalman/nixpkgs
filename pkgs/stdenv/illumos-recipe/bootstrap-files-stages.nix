@@ -154,10 +154,24 @@ let
     export PATH="$PATH:/usr/bin:/usr/sbin"
   '';
 
+  # patchelf-pin wraps the bootstrap-files patchelf binary in a
+  # derivation that emits a nix-support/setup-hook registering
+  # patchELF as a fixupOutputHook (shrinks DT_RUNPATH on every
+  # output's ELFs). Without it, packages with disallowedRequisites
+  # guards on bashNonInteractive (e.g. krb5.lib) fail because their
+  # RPATH still carries the build-time bash reference. The from-
+  # source chain solves this by passing prevStage.patchelf into
+  # stage 2+'s extraNativeBuildInputs; the seed chain has no
+  # prevStage to draw from, so we route through patchelf-pin.
+  patchelfPin = import ./patchelf-pin.nix {
+    patchelfStorePath = bf.patchelf;
+  };
+
   # Hooks usually attached at from-source.nix stage 4. The seed
   # stdenv builds everything downstream of the toolchain, so they
   # apply from the start.
   extraNativeBuildInputs = [
+    patchelfPin
     ./auto-rpath-hook.sh
     ./strip-illumos-libtool-flags-hook.sh
   ];
