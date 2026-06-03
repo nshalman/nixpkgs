@@ -14,9 +14,10 @@
 #    nixpkgs. Drift story: bootstrap-files only changes when
 #    explicitly refreshed.
 #
-# Selection: `config.illumosUseBootstrapFiles or false`. To opt in to
-# bootstrap-files mode, pass
-#   import ../../.. { config = { illumosUseBootstrapFiles = true; }; }
+# Selection: `config.illumosUseBootstrapFiles or true`. To opt out
+# (e.g. for ../illumos-recipe/make-bootstrap-tools.nix, which must
+# regenerate the seed via the from-source chain), pass
+#   import ../../.. { config = { illumosUseBootstrapFiles = false; }; }
 {
   lib,
   localSystem,
@@ -29,7 +30,7 @@
 assert crossSystem == localSystem;
 assert localSystem.system == "x86_64-illumos";
 
-if config.illumosUseBootstrapFiles or false then
+if config.illumosUseBootstrapFiles or true then
   import ./bootstrap-files-stages.nix args
 else
   import ./from-source.nix args
