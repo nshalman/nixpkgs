@@ -10,7 +10,7 @@
 #     /nix/store/...                          every path in nix's closure
 #     /nix/var/nix/.reginfo                   closureInfo's registration file
 #     /nix/var/nix/profiles/default           symlink -> /nix/store/.../nix
-#     /etc/nix/nix.conf                       single-user, no substituters
+#     /etc/nix/nix.conf                       single-user, default substituter (cache.nixos.org)
 #
 # First-boot step (out of scope for this derivation; whoever assembles
 # the zone root plumbs it via SMF / rc.d / etc.):
@@ -23,9 +23,9 @@
 # loaded, so the stdenv chain that eval'd via bootstrap-files-stages
 # cache-hits without fetching closure.nar.xz at first boot.
 #
-# Iteration 1 scope: single-user, no substituters, no /etc/passwd or
-# /etc/profile shipped (the zone root those things live in is assembled
-# outside this derivation). Layer on as we learn what's needed.
+# Iteration 1 scope: single-user, no /etc/passwd or /etc/profile
+# shipped (the zone root those things live in is assembled outside
+# this derivation). Layer on as we learn what's needed.
 {
   pkgs ? import ../../.. { },
   # The nix package to ship. We deliberately use nixVersions.nix_2_33
@@ -112,7 +112,13 @@ let
   nixConf = writeText "nix.conf" (''
     experimental-features = nix-command flakes
     build-users-group =
-    substituters =
+    # Leave `substituters` at the compile-time default
+    # (https://cache.nixos.org). FOD source tarballs are content-
+    # addressed by hash and not platform-specific, so the public
+    # cache serves them across illumos / linux / darwin alike — that
+    # avoids the seed chain's fetchurl builder having to actually run
+    # (the curl=null variant is still in place for cycle reasons;
+    # bd nix-mva tracks restoring a real curl in the seed).
     trusted-users = root
     # Our nix-2.33.6+9 baked in `system = x86_64-sunos` at autoconf time
     # (illumos uname -s = SunOS, lowercased). nixpkgs has no
