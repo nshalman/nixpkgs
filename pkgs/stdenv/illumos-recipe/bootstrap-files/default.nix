@@ -55,5 +55,7 @@ in
     binutils-unwrapped
     expand-response-params
     patchelf
+    curl.out
+    curl.bin
   ];
 }

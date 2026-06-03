@@ -18,11 +18,11 @@
 # See ./default.nix for the discoverable wrapper and the loader script.
 {
   closure = import <nix/fetchurl.nix> {
-    url = "https://www.shalman.org/files/a5a8lr21482fmnqsslhwq206j0rpyd8n-illumos-bootstrap-closure.nar.xz";
-    hash = "sha256-4kFCsE4vHAQ/Ie0J3KmEXnwpKjs6zDSOkjMWb6jRHsE=";
+    url = "https://www.shalman.org/files/52v0qnr3r6jmcyvj029p0pw43ybip45i-illumos-bootstrap-closure.nar.xz";
+    hash = "sha256-Kc6DZkY5xV8ZkA5litQa/4Ni6O59jK+vN/sTLZ3ACno=";
   };
   closureRoots = import <nix/fetchurl.nix> {
-    url = "https://www.shalman.org/files/ifxz7070m75nlh3nrxvh9zcchiky7vd0-illumos-bootstrap-closure-roots.txt";
-    hash = "sha256-fpGzSzhjlNpZUqrwjoYbXXYcZr7lXCEOy0wwAGPjC7I=";
+    url = "https://www.shalman.org/files/ralajyixi8d5wkrjhvb6hi513pdvg73j-illumos-bootstrap-closure-roots.txt";
+    hash = "sha256-EdNxcR628pU9pC6VBMsEn7XmLPYGAadHjv3Gw7/X+yw=";
   };
 }

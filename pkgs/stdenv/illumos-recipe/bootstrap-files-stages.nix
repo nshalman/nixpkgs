@@ -235,25 +235,20 @@ in
         isGNU = true;
       };
 
-      # Curl-based fetchurl with curl=null. The builder script's
-      # `curl` invocation relies on /usr/bin/curl being reachable
-      # via preHook's PATH append. Compatible with
-      # lib.extendMkDerivation (which fetchzip / fetchFromGitHub
-      # need); a boot.nix wrapper doesn't work without much deeper
-      # bridging (lib.fix + arg filtering wasn't sufficient — the
-      # nested extendMkDerivation in fetchFromGitHub's
-      # finalAttrs.rev access fails when constructDrv isn't itself
-      # extendMkDerivation-aware).
-      #
-      # Known gap: on a fresh zone the builder's PATH doesn't always
-      # include /usr/bin at the right point — observed "curl:
-      # command not found" on hello.src.drv. Tracked under bd
-      # nix-mva. Fix path: probably a multi-stage chain that builds
-      # pkgs.curl atop the seed, then a final stage re-wraps
-      # fetchurl with curl = built-curl.
+      # Curl-based fetchurl, with curl wired from the bootstrap-files
+      # closure (`bf.curl.bin`). The builder script's `curl`
+      # invocation finds the binary because nix adds bf.curl.bin/bin
+      # to the build sandbox PATH via nativeBuildInputs. No reliance
+      # on the host /usr/bin/curl (which was unreachable from the
+      # builder anyway due to a preHook-timing detail in setup.sh —
+      # the preHook string runs at file-source time, before
+      # setup.sh's `PATH=; for i in $initialPath` wipe-and-rebuild).
+      # lib.extendMkDerivation-compatible (fetchzip /
+      # fetchFromGitHub work), supports mirror://, postFetch,
+      # downloadToTemp — the full curl-fetchurl feature set.
       fetchurl = import ../../build-support/fetchurl {
         inherit lib stdenvNoCC;
-        curl = null;
+        curl = bf.curl.bin;
         inherit (config) hashedMirrors rewriteURL;
       };
     }

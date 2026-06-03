@@ -153,6 +153,20 @@ rec {
       # reference. bootstrap-files-stages.nix wires this into stage
       # 0's extraNativeBuildInputs via patchelf-pin.nix.
       patchelf
+
+      # curlMinimal: also structural — the seed chain's fetchurl
+      # uses a curl-based builder script that resolves `curl` from
+      # PATH. With `curl = null` in the fetchurl args, no curl
+      # winds up in nativeBuildInputs and the builder fails at
+      # "curl: command not found" on a fresh consumer that has no
+      # substituter (cache.nixos.org masked this on the host that
+      # originally built the closure). Shipping curlMinimal in the
+      # bootstrap-files closure and wiring `curl = bf.curl.bin`
+      # into the seed fetchurl gives every build a curl on PATH via
+      # the standard nativeBuildInputs path. Out + bin outputs
+      # both — `out` carries libcurl, `bin` carries the binary.
+      curlMinimal.out
+      curlMinimal.bin
     ];
 
   # Closure metadata: store-paths (full transitive list) and
