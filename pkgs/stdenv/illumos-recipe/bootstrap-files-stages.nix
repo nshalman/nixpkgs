@@ -235,25 +235,26 @@ in
         isGNU = true;
       };
 
-      # Use fetchurl/boot.nix — a thin wrapper around the language
-      # builtin `<nix/fetchurl.nix>`. The curl-based pkgs.fetchurl
-      # would call `curl` from a builder script; passing curl=null
-      # leaves the script intact and lets the builder fail at
-      # "curl: command not found" on a fresh consumer that hasn't
-      # built pkgs.curl yet (host A built only because
-      # pkgs.curl-fetched sources were already cached from earlier
-      # from-source-chain builds). boot.nix needs no curl.
+      # Curl-based fetchurl with curl=null. The builder script's
+      # `curl` invocation relies on /usr/bin/curl being reachable
+      # via preHook's PATH append. Compatible with
+      # lib.extendMkDerivation (which fetchzip / fetchFromGitHub
+      # need); a boot.nix wrapper doesn't work without much deeper
+      # bridging (lib.fix + arg filtering wasn't sufficient — the
+      # nested extendMkDerivation in fetchFromGitHub's
+      # finalAttrs.rev access fails when constructDrv isn't itself
+      # extendMkDerivation-aware).
       #
-      # Stage 1 (below) propagates this as pkgs.fetchurl via the
-      # `overrides` overlay, so downstream `src = fetchurl {...}`
-      # calls in nixpkgs land on the same builtin-backed fetcher.
-      # Tradeoff: pkgs.fetchurl loses the curl-only features
-      # (mirror://, postFetch, downloadToTemp). Acceptable for the
-      # seed chain's scope; a follow-up stage can rebuild a full
-      # curl-based pkgs.fetchurl once pkgs.curl is in /nix/store.
-      fetchurl = import ../../build-support/fetchurl/boot.nix {
-        inherit (localSystem) system;
-        inherit (config) rewriteURL;
+      # Known gap: on a fresh zone the builder's PATH doesn't always
+      # include /usr/bin at the right point — observed "curl:
+      # command not found" on hello.src.drv. Tracked under bd
+      # nix-mva. Fix path: probably a multi-stage chain that builds
+      # pkgs.curl atop the seed, then a final stage re-wraps
+      # fetchurl with curl = built-curl.
+      fetchurl = import ../../build-support/fetchurl {
+        inherit lib stdenvNoCC;
+        curl = null;
+        inherit (config) hashedMirrors rewriteURL;
       };
     }
   )
@@ -262,8 +263,11 @@ in
   # stage 0's cc + fetchurl. The seed stdenv at stage 0 has cc=null
   # (the cc/bintools/stdenv knot); stage 1 ties the knot by passing
   # the wrapped cc in. `overrides = self: super: { fetchurl; }`
-  # propagates the boot fetchurl into the package set so users get
-  # the same fetchurl their stdenv was built with.
+  # propagates the stage-0 fetchurl into the package set — also
+  # short-circuits the curl-based all-packages.nix default that
+  # would otherwise try to build pkgs.curl (cycle through
+  # libxcrypt → perl → … that nixpkgs' built-in fetchurlBoot
+  # override scope doesn't fully cover for our seed chain).
   (prevStage: {
     inherit config overlays;
     stdenv =
