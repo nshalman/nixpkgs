@@ -144,6 +144,15 @@ rec {
 
       # cc-wrapper helper
       expand-response-params
+
+      # patchelf: structural for the seed chain. Without a
+      # patchelf-shrink-rpath fixupOutputHook registered in the
+      # stdenv, packages with disallowedRequisites guards (krb5.lib
+      # disallowing bashNonInteractive being the canonical case)
+      # fail because their RPATH still carries the build-time bash
+      # reference. bootstrap-files-stages.nix wires this into stage
+      # 0's extraNativeBuildInputs via patchelf-pin.nix.
+      patchelf
     ];
 
   # Closure metadata: store-paths (full transitive list) and

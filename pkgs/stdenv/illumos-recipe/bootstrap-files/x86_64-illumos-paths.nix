@@ -33,4 +33,5 @@
   };
   binutils-unwrapped     = builtins.storePath /nix/store/smxxrjn00jfy9h7vxnw9x1371vvwi0vl-binutils-2.44;
   expand-response-params = builtins.storePath /nix/store/yxv5bgbj4akxsdgmz6s6lrqiy342kb2f-expand-response-params;
+  patchelf               = builtins.storePath /nix/store/jfzmvf1yh2m28vxpmrs2yx1i0gax4pl4-patchelf-0.15.2;
 }
