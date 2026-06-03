@@ -235,12 +235,25 @@ in
         isGNU = true;
       };
 
-      fetchurl = import ../../build-support/fetchurl {
-        inherit lib stdenvNoCC;
-        # Curl from /usr/bin if present; otherwise nix's builtin
-        # fetcher takes over.
-        curl = null;
-        inherit (config) hashedMirrors rewriteURL;
+      # Use fetchurl/boot.nix — a thin wrapper around the language
+      # builtin `<nix/fetchurl.nix>`. The curl-based pkgs.fetchurl
+      # would call `curl` from a builder script; passing curl=null
+      # leaves the script intact and lets the builder fail at
+      # "curl: command not found" on a fresh consumer that hasn't
+      # built pkgs.curl yet (host A built only because
+      # pkgs.curl-fetched sources were already cached from earlier
+      # from-source-chain builds). boot.nix needs no curl.
+      #
+      # Stage 1 (below) propagates this as pkgs.fetchurl via the
+      # `overrides` overlay, so downstream `src = fetchurl {...}`
+      # calls in nixpkgs land on the same builtin-backed fetcher.
+      # Tradeoff: pkgs.fetchurl loses the curl-only features
+      # (mirror://, postFetch, downloadToTemp). Acceptable for the
+      # seed chain's scope; a follow-up stage can rebuild a full
+      # curl-based pkgs.fetchurl once pkgs.curl is in /nix/store.
+      fetchurl = import ../../build-support/fetchurl/boot.nix {
+        inherit (localSystem) system;
+        inherit (config) rewriteURL;
       };
     }
   )
