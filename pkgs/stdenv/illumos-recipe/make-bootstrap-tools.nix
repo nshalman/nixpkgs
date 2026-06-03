@@ -37,7 +37,12 @@
 # Not packaged: libc (system /lib/64 is used) and patchelf (illumos ELF
 # is laid out differently; Sun ld emits clean RUNPATHs directly).
 {
-  pkgs ? import ../../.. { },
+  # Refresher mode: pin the from-source stdenv chain so the closure
+  # we emit is built end-to-end from proto-strap + sources, not from
+  # an already-loaded bootstrap-files closure (which would be
+  # circular — we'd just re-export what we imported). See
+  # ../illumos-recipe/default.nix for the dispatcher.
+  pkgs ? import ../../.. { config = { illumosUseBootstrapFiles = false; }; },
 }:
 let
   inherit (pkgs) runCommand closureInfo lib;

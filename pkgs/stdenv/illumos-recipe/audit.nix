@@ -80,8 +80,15 @@ let
         printf 'closure clean: %s\n' "${name}" > $out
       '';
 
+  # `bootstrap-tools` audit reflects what make-bootstrap-tools.nix
+  # ships — the refresher mode's from-source closure. Let
+  # make-bootstrap-tools choose its own pkgs (it pins
+  # illumosUseBootstrapFiles=false; see that file's header) rather
+  # than threading the audit's own pkgs through, which would point
+  # the audit at a different closure when the dispatcher is in
+  # bootstrap-files mode.
   bootstrapToolsPkgs =
-    (import ./make-bootstrap-tools.nix { inherit pkgs; }).bootstrap-tools-packages;
+    (import ./make-bootstrap-tools.nix { }).bootstrap-tools-packages;
 
 in
 {
