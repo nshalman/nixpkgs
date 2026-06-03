@@ -17,11 +17,11 @@
 #
 #   nix-store --load-db < /nix/var/nix/.reginfo
 #
-# After that, `nix-build`/`nix-store --realise` work. Builds that need
-# stage-0 stdenv (bash, coreutils, gcc-illumos, binutils-illumos, ...)
-# fetch the closure.nar.xz over HTTP per pkgs/stdenv/illumos-recipe/
-# bootstrap-files/x86_64-illumos.nix and load it with the sibling
-# load-illumos-closure.sh; no /opt/local needed.
+# After that, `nix-build`/`nix-store --realise` work. The shipped
+# /nix/store contains the bootstrap-files closure (gcc-illumos,
+# binutils, GNU userland, patchelf — see ./bootstrap-files/) pre-
+# loaded, so the stdenv chain that eval'd via bootstrap-files-stages
+# cache-hits without fetching closure.nar.xz at first boot.
 #
 # Iteration 1 scope: single-user, no substituters, no /etc/passwd or
 # /etc/profile shipped (the zone root those things live in is assembled
@@ -55,12 +55,15 @@
   # zone-tree rebuilds on every iteration we do). Flip to true when
   # building a final / shippable image.
   shipNixpkgs ? false,
-  # Bundle pkgs.stdenv's full closure into the zone's /nix/store so
-  # `nix-build '<nixpkgs>' -A hello` works offline (no fetch of
-  # bootstrap-tools.tar.xz). NOT added to the buildEnv'd PATH — stdenv
-  # is invoked via nix-build, not directly. Default off; flip to true
-  # for the publicly-shippable image.
-  shipStdenv ? false,
+  # Pre-load the bootstrap-files closure (gcc-illumos + binutils + GNU
+  # userland + patchelf — 22 store paths, ~414 MiB compressed) into
+  # the shipped /nix/store. Without this, the seed stdenv chain
+  # (bootstrap-files-stages.nix) fails eval on a fresh zone because
+  # builtins.storePath references the closure roots; the consumer has
+  # to run bootstrap-files/load-illumos-closure.sh manually before any
+  # nix-build works. Default on — this is what makes the image
+  # self-contained.
+  shipBootstrapFiles ? true,
 }:
 let
   inherit (pkgs) runCommand closureInfo writeText buildEnv lib;
@@ -97,11 +100,13 @@ let
       }
     else null;
 
+  bootstrapFiles = import ./bootstrap-files { };
+
   closure = closureInfo {
     rootPaths =
       [ systemEnv ]
       ++ lib.optional shipNixpkgs nixpkgsSnapshot
-      ++ lib.optional shipStdenv pkgs.stdenv;
+      ++ lib.optionals shipBootstrapFiles bootstrapFiles.allPaths;
   };
 
   nixConf = writeText "nix.conf" (''
