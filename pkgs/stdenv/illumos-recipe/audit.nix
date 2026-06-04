@@ -16,6 +16,13 @@
 #    string baked into a binary IS a functional dep even if the
 #    derivation graph doesn't know it.
 #
+#    Doc / man / info / locale subtrees are excluded from this grep:
+#    text inside them isn't exec'd or dlopen'd, so a literal path
+#    string in (say) a bison `share/doc/examples/` Makefile or a
+#    perl POD file isn't a functional dependency. Excluding them
+#    avoids flagging upstream documentation that happens to mention
+#    /opt/local as an example install prefix.
+#
 # Usage:
 #   nix-build pkgs/stdenv/illumos-recipe/audit.nix -A stdenv
 #   nix-build pkgs/stdenv/illumos-recipe/audit.nix -A hello
@@ -35,6 +42,18 @@ let
     "/opt/local"
   ];
 
+  # Directories whose contents are documentation / human-readable
+  # data — not consulted at runtime. Skipped during the substring
+  # grep. Matched by basename (grep's --exclude-dir semantics), so
+  # `share/doc` matches `<store-path>/share/doc/**` correctly.
+  substringExcludeDirs = [
+    "doc"
+    "man"
+    "info"
+    "gtk-doc"
+    "locale"
+  ];
+
   auditClosure =
     name: rootPaths:
     runCommand "${name}-clean-audit"
@@ -48,6 +67,7 @@ let
 
         closurePats=( ${lib.escapeShellArgs closurePatterns} )
         substringPats=( ${lib.escapeShellArgs substringPatterns} )
+        excludeDirs=( ${lib.escapeShellArgs (map (d: "--exclude-dir=${d}") substringExcludeDirs)} )
 
         # Closure-path check: fail if any forbidden derivation name is
         # in the runtime closure.
@@ -65,7 +85,8 @@ let
         for p in $(cat $ci/store-paths); do
           for pat in "''${substringPats[@]}"; do
             # -a: treat binaries as text, -l: just names, -r: recursive.
-            if hits=$(grep -ralF "$pat" "$p" 2>/dev/null) && [ -n "$hits" ]; then
+            # excludeDirs skips share/doc, share/man, etc. — see header.
+            if hits=$(grep -ralF "''${excludeDirs[@]}" "$pat" "$p" 2>/dev/null) && [ -n "$hits" ]; then
               echo "FORBIDDEN: $p substring-matches '$pat':" >&2
               echo "$hits" | sed 's/^/    /' >&2
               bad=1
