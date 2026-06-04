@@ -57,5 +57,9 @@ in
     patchelf
     curl.out
     curl.bin
+    gnum4
+    flex
+    bison
+    perl
   ];
 }
