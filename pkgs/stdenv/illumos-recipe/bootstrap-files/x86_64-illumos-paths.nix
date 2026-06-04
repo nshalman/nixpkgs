@@ -38,4 +38,8 @@
     out = builtins.storePath /nix/store/mqc1fjl0pigzb65vz7m6wagcs6zl7361-curl-8.19.0;
     bin = builtins.storePath /nix/store/qvmim00wxvlk9khh9j5pg1b58jxra0az-curl-8.19.0-bin;
   };
+  gnum4                  = builtins.storePath /nix/store/digdz1s7716spsh7p9w4afclqm4m179d-gnum4-1.4.20;
+  flex                   = builtins.storePath /nix/store/8cy0hskb96isi6jh0jg8p250asa2297r-flex-2.6.4;
+  bison                  = builtins.storePath /nix/store/n3nqn6nqmwqi4hx80d2v80x3scd05k9s-bison-3.8.2;
+  perl                   = builtins.storePath /nix/store/52ah1wjicc54hnhhnralp0z19zng9lgi-perl-5.40.0;
 }
