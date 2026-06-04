@@ -10,17 +10,16 @@
 #   LINK_ARCH64_SPEC_BASE so the resulting xgcc emits $out/lib/amd64
 #   for runpath / library search
 #
-# Build mode is --disable-bootstrap (single stage). The pkgsrc
-# /--enable-bootstrap combo wedged the host's memory subsystem during
-# stage-3 link bursts on a 32 GB box; one stage is enough when we
-# start from a clean host compiler.
+# Build mode is --enable-bootstrap (GCC's 3-stage self-host). The
+# final stage's binaries are linked by the new compiler itself, so
+# their RUNPATHs reference only $lib/lib/amd64 — no host-cc leak.
+# This matches SmartOS-extra's canonical /usr/gcc/N recipe. The
+# stage-3 link bursts can OOM 32 GB hosts at uncapped -j; consumers
+# on memory-constrained hosts should pass coresCap=2 (see below).
 #
 # Cleanliness contract:
-# - Output `xgcc`'s OWN RUNPATH inherits the host compiler's specs.
-#   For proto.strap that means /usr/gcc/10/lib/amd64 ends up alongside
-#   $out/lib/amd64 in the driver / cc1plus RUNPATHs. The builder passes
-#   LDFLAGS=-Wl,-R$out/lib/amd64 so resulting binaries find their libs
-#   in $out first. Cosmetic cleanup deferred.
+# - Output `xgcc`, cc1, cc1plus etc. carry RUNPATH entries pointing
+#   only at $lib/lib/amd64 (the new build's own libgcc_s / libstdc++).
 # - Output BINARIES THAT xgcc COMPILES use our patched specs and
 #   naturally emit $out/lib/amd64 — no cleanup needed downstream.
 #
