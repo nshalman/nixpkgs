@@ -34,7 +34,9 @@ let
   inherit (pkgs.buildPackages) gnugrep;
 
   closurePatterns = [
-    "illumos-strap-tools"
+    # proto-strap is the SmartOS strap-cache derivation and is also a
+    # substring of `illumos-proto-strap-cc` (the stage-0 wrapper), so
+    # a single pattern catches both stage-0 build inputs.
     "proto-strap"
   ];
 
