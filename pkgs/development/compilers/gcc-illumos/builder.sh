@@ -99,21 +99,21 @@ sed -i \
 
 # Configure in a separate build directory (required by gcc build system).
 #
-# --disable-bootstrap: skip GCC's 3-stage self-host. If the host
-# compiler is already a clean SmartOS-recipe-built compiler (proto.strap
-# or a previously-built gcc-illumos), a 3-stage rebuild just re-derives
-# what we already have. Saves ~3x build time and avoids stage-N link
-# bursts.
+# --enable-bootstrap: GCC's stage-3 links its final binaries with the
+# new compiler itself, so the resulting xgcc / cc1 / cc1plus / lto1
+# RUNPATHs reference only $lib/lib/amd64 — no host-cc carry-through.
+# Without bootstrap, the host gcc (proto-strap or a previously-built
+# gcc-illumos) leaks into the closure via libexec RUNPATH entries.
+# Matches SmartOS-extra's canonical /usr/gcc/N recipe. The cost is
+# ~3x wall time and stage-N link bursts that can OOM small hosts —
+# clamp via $coresCap.
 #
-# LDFLAGS=-Wl,-R$out/lib/amd64: host compiler's specs typically emit
-# -R into the host's install dir. This LDFLAGS adds OUR path to the
-# same RUNPATH list. Resulting binaries carry both paths; loader checks
-# $out/lib/amd64 first (assuming it's listed first). Functional
-# correctness only — cosmetic RUNPATH cleanup is deferred.
+# LDFLAGS=-Wl,-R$lib/lib/amd64: ensures $lib/lib/amd64 lands in the
+# RUNPATH of binaries built here.
 cd "$builddir"
 "$srcdir/configure" \
     --prefix="$out" \
-    --disable-bootstrap \
+    --enable-bootstrap \
     --build=x86_64-pc-solaris2.11 \
     --host=x86_64-pc-solaris2.11 \
     --target=x86_64-pc-solaris2.11 \
@@ -129,15 +129,12 @@ cd "$builddir"
     CXXFLAGS="-g -O2 -m64" \
     LDFLAGS="-Wl,-R$lib/lib/amd64"
 
-# Single-stage build (we're --disable-bootstrap'd).
-#
-# Parallelism: even single-stage, the final cc1plus / cc1 / lto1 /
-# lto-dump links happen near-simultaneously and each can hold a
-# libbackend.a (smaller on GCC 10 than GCC 14) + several GB of linker
-# RSS. The 14-build with --enable-bootstrap wedged a 32 GB host on
-# every -j cap (16, 8, 6) when running 3 stages; single-stage at -j6
-# cleared comfortably. coresCap=0 (default) means "no cap, use
-# NIX_BUILD_CORES"; raise to a positive integer to clamp.
+# 3-stage bootstrap build. The final cc1plus / cc1 / lto1 / lto-dump
+# links happen near-simultaneously and each can hold a libbackend.a
+# + several GB of linker RSS. 32 GB hosts have wedged at uncapped -j;
+# host A built --enable-bootstrap at -j2 in ~2.5 h wall (gcc-14).
+# coresCap=0 (default) means "no cap, use NIX_BUILD_CORES"; raise to
+# a positive integer to clamp.
 cap="${coresCap:-0}"
 cores="${NIX_BUILD_CORES:-1}"
 [ "$cores" -eq 0 ] && cores=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)

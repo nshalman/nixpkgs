@@ -4604,9 +4604,11 @@ with pkgs;
   #
   # Wired into allPackages so each illumos-recipe stdenv stage rebuilds
   # it against the current cc: stage N+1 inherits a gcc-illumos built
-  # by stage N's stdenv. Bootstrap chain at stage 0 starts from the
-  # scrubbed pin (pkgs/stdenv/illumos-recipe/pins.nix); by stage 3 the
-  # build provenance is fully nixpkgs-clean.
+  # by stage N's stdenv. With --enable-bootstrap (the package default),
+  # stage-3 link bursts hold libbackend.a + several GB of linker RSS;
+  # coresCap=2 keeps a 32 GB host from wedging. Host B's 128 GB gain
+  # from a higher cap is small because each link is RSS-bound, not
+  # parallelism-bound — keep the cap conservative.
   gcc-illumos =
     if stdenv.hostPlatform.isIllumos then
       import ../development/compilers/gcc-illumos {
@@ -4614,6 +4616,7 @@ with pkgs;
           binPath = "${stdenv.cc.cc}/bin";
           gasPath = "${binutils-unwrapped}/bin/as";
         };
+        coresCap = 2;
         # /usr/bin is appended as a literal host-system fallback. gcc-14
         # subdir configure scripts (e.g. libgomp) generate libtool whose
         # `${ECHO}` macro expands to `print -r --` when configure detects
