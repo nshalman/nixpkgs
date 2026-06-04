@@ -28,9 +28,9 @@
 # The from-source chain's stages 0-3 exist to scrub proto-strap
 # pollution out of the chain by repeatedly rebuilding gcc-illumos and
 # the userland. The bootstrap-files closure is the canonical post-
-# scrub output (built clean by gcc-illumos-bootstrap with GCC's
-# --enable-bootstrap; see ../make-bootstrap-tools.nix). Seeding
-# directly from it skips the scrub dance.
+# scrub output (built clean by gcc-illumos with --enable-bootstrap;
+# see ../make-bootstrap-tools.nix). Seeding directly from it skips
+# the scrub dance.
 {
   lib,
   localSystem,
