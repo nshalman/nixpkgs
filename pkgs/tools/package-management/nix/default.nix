@@ -150,6 +150,7 @@ let
     ./patches/illumos/0007-Fix-garbage-collection-on-illumos.patch
     ./patches/illumos/0008-Default-to-illumos-for-SunOS-systems-in-sandboxed-bu.patch
     ./patches/illumos/0009-Fix-pseudoterminal-handling-for-illumos-Solaris-buil.patch
+    ./patches/illumos/0010-Fix-FdLock-destructor-passing-illegal-LOCK_UN-LOCK_N.patch
   ];
 in
 lib.makeExtensible (
