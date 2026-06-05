@@ -4,7 +4,7 @@
 #   nix-build pkgs/stdenv/illumos-recipe/make-bootstrap-tools.nix -A build
 #
 # Produces:
-#   result/on-server/closure.nar.xz       Stage-3 closure as xz-compressed
+#   result/on-server/closure.nar.xz       Stage-2 closure as xz-compressed
 #                                         NAR. Payload layout (after the
 #                                         NAR is restored into <work>):
 #                                           <work>/nix/store/<each-path>/...
@@ -23,107 +23,93 @@
 #                                         is not immediately collectible.
 #
 # Once a receiver has loaded the closure, `nix-build` cache-hits the
-# entire stage 0–3 graph; only stage 4 wrap + the user's target derive
-# actually rebuild.
+# entire stage 0–2 graph; only the user's target derivation builds.
 #
-# Contract: NO /opt/local refs in the closure (audit step). /usr/* refs
-# are expected — gcc-illumos's compiler driver binaries (xgcc, cc1,
-# cc1plus, ...) carry /usr/gcc/10/lib/amd64 in RUNPATH inherited from
-# the proto-strap host compiler that BUILT gcc-illumos. That resolves
-# from the host illumos /usr/gcc/10, which is fine for a system-managed
-# compiler runtime. Eliminating this requires self-hosted gcc-illumos
-# (Phase 6 step 21); cosmetic until then.
+# Contract: NO /opt/local refs in the closure (audit step). NO
+# proto-strap refs (also audited; gcc-illumos's --enable-bootstrap
+# self-link drops the host-cc RUNPATH carry-through). Sun ld is the
+# system /usr/bin/ld and is NOT packaged; system /lib/64 supplies
+# libc.
 #
-# Not packaged: libc (system /lib/64 is used) and patchelf (illumos ELF
-# is laid out differently; Sun ld emits clean RUNPATHs directly).
+# From-source mode: defaults `pkgs` to `illumosUseBootstrapFiles =
+# false`, so every root below is freshly compiled by the 3-stage
+# chain (proto-strap → gcc-illumos --enable-bootstrap → final
+# stdenv) rather than pulled from the prior closure via `bf.*`. Most
+# artifacts cache-hit from /nix/store once the chain has been built
+# in this checkout.
 {
-  # Refresher pkgs. Defaults to the dispatcher's bootstrap-files mode
-  # so `pkgs.gnum4` / `pkgs.flex` / etc. are built atop the seed
-  # stdenv that uses `bf.gcc-illumos` as the cc. The existing closure
-  # roots (gcc-illumos, binutils, bash, coreutils, …) are pulled
-  # **directly** from `bf.*` below — no rebuild of artifacts already
-  # in the previous closure. An additive refresh that just adds new
-  # packages costs only those packages' compile time.
-  pkgs ? import ../../.. { },
+  pkgs ? import ../../.. { config = { illumosUseBootstrapFiles = false; }; },
 }:
 let
   inherit (pkgs) runCommand closureInfo lib;
   inherit (pkgs.buildPackages) dumpnar rsync xz;
 
-  # Previous-closure store paths. Used directly as closure roots so we
-  # ship the same audited gcc-illumos / binutils / userland the
-  # previous iteration already validated. Refreshing artifacts in this
-  # set means swapping the path in ./bootstrap-files/x86_64-illumos-paths.nix
-  # after a from-source rebuild via the dispatcher's
-  # illumosUseBootstrapFiles=false mode (separate workflow).
-  bf = (import ./bootstrap-files { }).paths;
+  # singleBinary=false splits coreutils into one binary per tool
+  # rather than a symlink farm pointing at a multi-call binary —
+  # matches v2.3's choice; downstream builders PATH-resolve specific
+  # tool names with no surprises.
+  coreutils-big = pkgs.coreutils.override { singleBinary = false; };
 
 in
 rec {
   # Roots of the closure. Exposed as a top-level attribute so audit.nix
   # can deep-grep this exact set without duplicating the list. Anything
   # added here is also implicitly auditable.
-  bootstrap-tools-packages = [
-    # ---- Existing roots, reused as-is from the previous closure. ----
-    # These are raw storePaths (no rebuild). bf.* is the source of
-    # truth for what's in the previous iteration; refreshing any of
-    # these requires a from-source rebuild (illumosUseBootstrapFiles
-    # =false), then resyncing bootstrap-files/x86_64-illumos-paths.nix.
-
+  bootstrap-tools-packages = with pkgs; [
     # GNU userland
-    bf.bash
-    bf.coreutils
-    bf.gnutar
-    bf.findutils
-    bf.gnumake
-    bf.gnused
-    bf.gnugrep
-    bf.gawk
-    bf.diffutils
-    bf.patch
+    coreutils-big
+    bash
+    gnutar
+    findutils
+    gnumake
+    gnused
+    gnugrep
+    gawk
+    diffutils
+    patch
 
-    # Compression
-    bf.xz-bin
-    bf.xz-dev
-    bf.gzip
-    bf.bzip2-bin
-    bf.bzip2-dev
-    bf.zlib
-    bf.zlib-dev
+    # Compression — multi-output (bin/dev/out). `pkgs.xz` and
+    # `pkgs.bzip2` default to their `.bin` output in current
+    # nixpkgs; the explicit `.dev` lines pull in the headers as
+    # separate closure roots.
+    xz
+    xz.dev
+    gzip
+    bzip2
+    bzip2.dev
+    zlib
+    zlib.dev
 
     # Toolchain — gcc-illumos.out (driver), gcc-illumos.lib (libgcc_s
     # + libstdc++), plus binutils-unwrapped for gas / GNU binutils.
     # Sun ld is the system /usr/bin/ld, not packaged.
-    bf.gcc-illumos.out
-    bf.gcc-illumos.lib
-    bf.binutils-unwrapped
+    gcc-illumos.out
+    gcc-illumos.lib
+    binutils-unwrapped
 
     # cc-wrapper helper.
-    bf.expand-response-params
+    expand-response-params
 
     # patchelf: structural for the seed chain (krb5.lib
     # disallowedRequisites compliance). bootstrap-files-stages.nix
     # wires this into stage 0's extraNativeBuildInputs via
     # patchelf-pin.nix.
-    bf.patchelf
+    patchelf
 
     # curlMinimal: also structural — seed chain's fetchurl wires
     # `curl = bf.curl.bin`. Out + bin outputs both — `out` carries
     # libcurl, `bin` carries the binary.
-    bf.curl.out
-    bf.curl.bin
+    curlMinimal.out
+    curlMinimal.bin
 
-    # ---- New additions for this refresh. ----
-    # Built atop the seed stdenv (which uses bf.gcc-illumos as cc);
-    # transitively reference bf.* paths above. With these baked into
-    # the closure, a fresh stage-0 from-source chain doesn't have to
-    # compile them before it can compile gcc-illumos. Downstream
-    # packages that need them (autoconf, automake, …) also cache-hit
-    # when their build inputs match.
-    pkgs.gnum4
-    pkgs.flex
-    pkgs.bison
-    pkgs.perl
+    # Common build prerequisites preloaded so a fresh stage-0
+    # from-source chain (and downstream autoconf/automake/etc.) does
+    # not have to compile them before gcc-illumos becomes
+    # available.
+    gnum4
+    flex
+    bison
+    perl
   ];
 
   # Closure metadata: store-paths (full transitive list) and
