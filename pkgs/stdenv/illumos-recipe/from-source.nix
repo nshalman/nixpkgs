@@ -199,6 +199,23 @@ in
         expand-response-params = expandResponseParamsDrv;
         coreutils = coreutilsDrv;
         gnugrep = bf.gnugrep;
+        # proto-strap ships GCC 10.4.0; `-fzero-call-used-regs=used-gpr`
+        # needs GCC 11+. Drop it from stage 0/1's default hardening.
+        # Stage 2 inherits the full default set via wrapBintoolsWith
+        # /wrapCCWith since prevStage.gcc-illumos is GCC 14.
+        defaultHardeningFlags = [
+          "bindnow"
+          "format"
+          "fortify"
+          "fortify3"
+          "libcxxhardeningextensive"
+          "libcxxhardeningfast"
+          "pic"
+          "relro"
+          "stackclashprotection"
+          "stackprotector"
+          "strictoverflow"
+        ];
       };
 
       cc = import ../../build-support/cc-wrapper {
