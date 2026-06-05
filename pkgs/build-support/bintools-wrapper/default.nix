@@ -111,7 +111,13 @@ let
   # The dynamic linker has different names on different platforms. This is a
   # shell glob that ought to match it.
   dynamicLinker =
-    if sharedLibraryLoader == null then
+    # illumos / Solaris: ld.so.1 is part of the OS — does not require
+    # sharedLibraryLoader (libc) to be in scope, so check first.
+    if targetPlatform.isIllumos && targetPlatform.is64bit then
+      "/usr/lib/amd64/ld.so.1"
+    else if targetPlatform.isIllumos then
+      "/usr/lib/ld.so.1"
+    else if sharedLibraryLoader == null then
       ""
     else if targetPlatform.libc == "musl" then
       "${sharedLibraryLoader}/lib/ld-musl-*"
