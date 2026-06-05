@@ -45,7 +45,11 @@ rec {
     buildInputs = [
       bash
     ]
-    ++ lib.optional (!stdenv.hostPlatform.isDarwin && !stdenv.hostPlatform.isFreeBSD) gcc.cc.lib
+    ++ lib.optional (!stdenv.hostPlatform.isDarwin && !stdenv.hostPlatform.isFreeBSD) (
+      # On illumos, stdenv.cc.cc is gcc-illumos (already in scope); using its
+      # lib output avoids pulling upstream nixpkgs gcc-14.3.0 + LLVM + binutils.
+      if stdenv.hostPlatform.isIllumos then stdenv.cc.cc.lib else gcc.cc.lib
+    )
     ++ lib.optional (!stdenv.hostPlatform.isDarwin) zlib;
 
     postPatch = ''
@@ -156,7 +160,9 @@ rec {
     buildInputs = [
       bash
     ]
-    ++ lib.optional (!stdenv.hostPlatform.isDarwin && !stdenv.hostPlatform.isFreeBSD) gcc.cc.lib;
+    ++ lib.optional (!stdenv.hostPlatform.isDarwin && !stdenv.hostPlatform.isFreeBSD) (
+      if stdenv.hostPlatform.isIllumos then stdenv.cc.cc.lib else gcc.cc.lib
+    );
 
     postPatch = ''
       patchShebangs .
