@@ -139,7 +139,8 @@ rec {
   # The on-disk staging tree, as a regular derivation we can inspect.
   # Useful for debugging without pinging the tar+xz step.
   zone-tree = runCommand "nix-zone-tree" { nativeBuildInputs = [ rsync ]; } ''
-    mkdir -p $out/nix/store $out/nix/var/nix/profiles $out/etc/nix
+    mkdir -p $out/nix/store $out/nix/var/nix/profiles \
+             $out/nix/var/nix/gcroots $out/etc/nix
 
     # Copy every store path in the closure. rsync -a preserves modes
     # (including the exec bit on binaries) without the cp
@@ -161,6 +162,22 @@ rec {
 
     # Single-user nix.conf.
     cp ${nixConf} $out/etc/nix/nix.conf
+
+    ${lib.optionalString shipBootstrapFiles ''
+      # GC roots for the bootstrap-files closure. Without these, a
+      # `nix-store --gc` inside the zone wipes gcc-illumos / binutils-
+      # unwrapped / patchelf / gnum4 / flex / bison / perl / etc.
+      # because they aren't reachable from /nix/var/nix/profiles/default
+      # (the default profile pins nix + bash + the few user-facing
+      # tools, not the stage-0 toolchain that lives in the closure to
+      # make subsequent nix-builds cache-hit). One symlink per closure
+      # root, named by its hash-prefixed store basename for
+      # uniqueness.
+      mkdir -p $out/nix/var/nix/gcroots/illumos-bootstrap-tools
+      ${lib.concatMapStringsSep "\n" (p:
+        ''ln -s ${p} "$out/nix/var/nix/gcroots/illumos-bootstrap-tools/$(basename ${p})"''
+      ) bootstrapFiles.allPaths}
+    ''}
 
     ${lib.optionalString shipNixpkgs ''
       # Ship the nixpkgs source tree at /etc/nixos/nixpkgs so the default
