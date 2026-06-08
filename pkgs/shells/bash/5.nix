@@ -77,8 +77,18 @@ lib.warnIf (withDocs != null)
     # examples/loadables/finfo.c gates <sys/mkdev.h> on MAJOR_IN_MKDEV,
     # but bash's configure never probes for it. On illumos major/minor
     # live in <sys/mkdev.h>, not <sys/types.h>, so define this manually.
+    #
+    # HEREDOC_PIPESIZE=4096 disables bash's pipe optimization for
+    # heredocs larger than PIPE_BUF. illumos has no F_GETPIPE_SZ, so the
+    # runtime safety check in here_document_to_fd (redir.c) is compiled
+    # out; heredoc_write then does a single blocking write() that
+    # deadlocks if the heredoc body exceeds the actual pipe capacity
+    # (observed under autoconf-generated config.status creation, e.g.
+    # gdbm-1.26). 4096 forces any larger heredoc through the tempfile
+    # path, mirroring upstream's freebsd*|midnightbsd*) configure arm.
     + lib.optionalString stdenv.hostPlatform.isIllumos ''
       -DMAJOR_IN_MKDEV
+      -DHEREDOC_PIPESIZE=4096
     '';
 
     patchFlags = [ "-p0" ];
