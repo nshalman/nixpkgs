@@ -4606,9 +4606,11 @@ with pkgs;
   # it against the current cc: stage N+1 inherits a gcc-illumos built
   # by stage N's stdenv. With --enable-bootstrap (the package default),
   # stage-3 link bursts hold libbackend.a + several GB of linker RSS;
-  # coresCap=2 keeps a 32 GB host from wedging. Host B's 128 GB gain
-  # from a higher cap is small because each link is RSS-bound, not
-  # parallelism-bound — keep the cap conservative.
+  # coresCap bounds concurrent stage-3 links so a 32 GB host doesn't
+  # wedge. Empirically: 2 works; trialling 3 next (each link is
+  # RSS-bound, not parallelism-bound, so the gain is bounded — but if
+  # peak per-link RSS is well under 10 GB the headroom for one more
+  # concurrent link should exist).
   gcc-illumos =
     if stdenv.hostPlatform.isIllumos then
       import ../development/compilers/gcc-illumos {
@@ -4616,7 +4618,7 @@ with pkgs;
           binPath = "${stdenv.cc.cc}/bin";
           gasPath = "${binutils-unwrapped}/bin/as";
         };
-        coresCap = 2;
+        coresCap = 3;
         # /usr/bin is appended as a literal host-system fallback. gcc-14
         # subdir configure scripts (e.g. libgomp) generate libtool whose
         # `${ECHO}` macro expands to `print -r --` when configure detects
