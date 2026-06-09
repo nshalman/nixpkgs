@@ -631,6 +631,19 @@ stdenvNoCC.mkDerivation {
       fi
     ''
 
+    # When libc=null (host-provided libc, e.g. illumos seed bintools),
+    # the libc-gated block above doesn't emit orig-libc. The
+    # bintools-wrapper may emit it from outside that gate; mirror the
+    # dynamic-linker backward-compat pattern so $NIX_CC/nix-support/
+    # orig-libc resolves for cmake / swift-wrapper / dropbear / etc.
+    # libc != null cases evaluate to "" → byte-identical, no drv-hash
+    # change.
+    + optionalString (libc == null && !isArocc) ''
+      if [[ -f "$bintools/nix-support/orig-libc" ]]; then
+        ln -s "$bintools/nix-support/orig-libc" "$out/nix-support"
+      fi
+    ''
+
     ##
     ## GCC libs for non-GCC support
     ##
