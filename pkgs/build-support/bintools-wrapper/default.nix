@@ -343,6 +343,18 @@ stdenvNoCC.mkDerivation {
     )
 
     ##
+    ## illumos seed bintools (libc=null): libc lives on the host at
+    ## /usr/lib/{,amd64/}libc.so.1 and the dynamic linker at
+    ## /usr/lib/{,amd64/}ld.so.1. autoPatchelfHook reads orig-libc and
+    ## dynamic-linker from the wrapper's nix-support/, so emit both here.
+    ## libc=null on non-illumos targets is unchanged (this string is empty).
+    ##
+    + optionalString (libc == null && targetPlatform.isIllumos) ''
+      echo /usr > $out/nix-support/orig-libc
+      echo ${dynamicLinker} > $out/nix-support/dynamic-linker
+    ''
+
+    ##
     ## User env support
     ##
 
