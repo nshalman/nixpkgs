@@ -21,19 +21,35 @@
 #
 # or just clone a working copy and `export NIX_PATH=nixpkgs=/path/to/nixpkgs`.
 #
-# Defaults below match what the zone-image's make-zone-image.nix
-# initially builds, so the first nix-build of system.nix is a no-op
-# (the profile already points at this content).
+# This file is also imported by ../make-zone-image.nix to build the
+# initial system profile baked into the zone image, so the `paths` list
+# below is the single source of truth for what lands under
+# /nix/var/nix/profiles/default on first boot. Edits flow into both the
+# image build and the in-zone rebuild by construction; the first
+# `nix-build /etc/nixos/system.nix` from inside the zone is a no-op iff
+# NIX_PATH points at the same nixpkgs revision the image was built
+# from.
 { pkgs ? import <nixpkgs> { } }:
 
 pkgs.buildEnv {
   name = "nix-zone-system";
 
   paths = with pkgs; [
-    bashInteractive
+    # .out (not the package itself) because buildEnv would otherwise
+    # try to include outputs like `man` that aren't always built.
+    # nixVersions.nix_2_33 rather than pkgs.nix because the package-set
+    # default is 2.31.5, which doesn't compile on illumos.
     nixVersions.nix_2_33.out
+    bashInteractive
     coreutils
     rsync
+    gitMinimal
+    # Mozilla CA bundle. Lands at $out/etc/ssl/certs/ca-bundle.crt;
+    # zone-root/builder.sh symlinks /etc/ssl/certs/{ca-bundle,
+    # ca-certificates}.crt to it and /etc/profile exports
+    # SSL_CERT_FILE / NIX_SSL_CERT_FILE pointing there. Removing this
+    # entry breaks TLS for git / curl / nix at the next rebuild.
+    cacert
   ];
 
   pathsToLink = [ "/bin" "/etc" "/lib" "/libexec" "/share" ];

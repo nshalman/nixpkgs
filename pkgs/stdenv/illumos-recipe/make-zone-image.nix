@@ -28,27 +28,6 @@
 # this derivation). Layer on as we learn what's needed.
 {
   pkgs ? import ../../.. { },
-  # The nix package to ship. We deliberately use nixVersions.nix_2_33
-  # rather than the package-set default `pkgs.nix` — the default is
-  # 2.31.5 in this branch and doesn't compile on illumos.
-  # nixVersions.nix_2_33 is 2.33.6+9, the Phase-5-step-15 build with
-  # the illumos portability work. Use .out (not the package itself)
-  # because buildEnv would otherwise try to include outputs like `man`
-  # that haven't been built.
-  nix ? pkgs.nixVersions.nix_2_33.out,
-  bash ? pkgs.bashInteractive,
-  # Additional packages (or store paths) to expose via the system env.
-  # Default set:
-  #   coreutils + rsync + gitMinimal — usual GNU userland alongside
-  #     bash/nix, plus git so users can `git clone` a nixpkgs tree.
-  #   cacert — Mozilla CA bundle at $out/etc/ssl/certs/ca-bundle.crt;
-  #     zone-root/builder.sh wires /etc/ssl/certs symlinks to it.
-  extraRootPaths ? [
-    pkgs.coreutils
-    pkgs.rsync
-    pkgs.gitMinimal
-    pkgs.cacert
-  ],
   # Ship a copy of this nixpkgs tree at /etc/nixos/nixpkgs and set the
   # default nix-path so `<nixpkgs>` resolves out of the box. Default
   # off because the snapshot's hash invalidates on any tree edit (so
@@ -66,20 +45,18 @@
   shipBootstrapFiles ? true,
 }:
 let
-  inherit (pkgs) runCommand closureInfo writeText buildEnv lib;
+  inherit (pkgs) runCommand closureInfo writeText lib;
   inherit (pkgs.buildPackages) xz gnutar rsync;
 
   # NixOS-style "system" env: one store path with a bin/ etc/ share/...
   # tree of symlinks into every constituent package. Lets users type
   # `bash`, `nix`, etc. from a single PATH entry, and provides the
-  # canonical /nix/var/nix/profiles/default symlink target. Extend the
-  # `paths` list to expose more tools in the merged tree.
-  systemEnv = buildEnv {
-    name = "nix-zone-system";
-    paths = [ nix bash ] ++ extraRootPaths;
-    pathsToLink = [ "/bin" "/etc" "/lib" "/libexec" "/share" ];
-    ignoreCollisions = true;
-  };
+  # canonical /nix/var/nix/profiles/default symlink target. The
+  # definition lives in zone-root/system.nix so the in-zone editable
+  # template at /etc/nixos/system.nix and the initial profile baked
+  # into the image are the same derivation — extending one extends
+  # both.
+  systemEnv = import ./zone-root/system.nix { inherit pkgs; };
 
   # Snapshot of THIS nixpkgs tree, ingested into the store, when
   # shipNixpkgs = true. .git/result/outputs/.direnv filtered out.
