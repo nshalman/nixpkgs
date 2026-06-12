@@ -1,0 +1,69 @@
+From: Nahum Shalman <nshalman@edgecast.io>
+Date: Thu, 12 Jun 2026 04:00:00 +0000
+Subject: [PATCH] Populate PeerInfo on illumos via getpeerucred
+
+getPeerInfo() in src/nix/unix/daemon.cc has per-platform arms for
+SO_PEERCRED (Linux, OpenBSD) and LOCAL_PEERCRED (macOS, FreeBSD).
+illumos has neither, so the function returns an empty PeerInfo and
+the daemon logs "accepted connection from pid <unknown>, user
+<unknown>" for every client. Worse, authPeer() then sees peer.uid ==
+nullopt, getpwuid() is not called, the user name resolves to
+"<unknown>", and trusted-users / allowed-users matching falls back to
+"*"-only — defeating the mandatory-access-control story for
+multi-user setups on illumos.
+
+illumos exposes peer credentials through getpeerucred(3C), declared
+in <ucred.h>. It populates an opaque ucred_t *, from which
+ucred_geteuid / ucred_getegid / ucred_getpid extract the effective
+uid, gid, and pid of the peer at connect time. The effective ids are
+the right choice: authPeer() uses them to decide trust, matching
+macOS's xucred.cr_uid and Linux's struct ucred.uid (both effective
+on an AF_UNIX connect).
+
+Add a parallel #elif defined(__sun) arm. The pattern matches the
+existing arms: best-effort extraction, leave fields nullopt on
+failure (authPeer handles std::nullopt gracefully — it just yields a
+"<unknown>" user name and skips trust elevation). The <ucred.h>
+include sits next to the existing <sys/ucred.h> block, guarded by
+__sun (illumos's <ucred.h> is unrelated to BSD's <sys/ucred.h>:
+different header, different API, opaque vs concrete struct).
+
+After this patch, with nix-daemon running as root on illumos and a
+non-root client connecting via /nix/var/nix/daemon-socket/socket, the
+log reads "accepted connection from pid 12345, user alice" and
+trusted-users / @group matching works as expected.
+
+---
+ src/nix/unix/daemon.cc | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+--- a/src/nix/unix/daemon.cc
++++ b/src/nix/unix/daemon.cc
+@@ -43,6 +43,10 @@
+ #  include <sys/ucred.h>
+ #endif
+
++#ifdef __sun
++#  include <ucred.h>
++#endif
++
+ using namespace nix;
+ using namespace nix::daemon;
+
+@@ -264,6 +268,16 @@
+     if (getsockopt(remote, SOL_LOCAL, LOCAL_PEERCRED, &cred, &credLen) == 0)
+         peer.uid = cred.cr_uid;
+
++#elif defined(__sun)
++
++    ucred_t * cred = nullptr;
++    if (getpeerucred(remote, &cred) == 0) {
++        peer.pid = ucred_getpid(cred);
++        peer.uid = ucred_geteuid(cred);
++        peer.gid = ucred_getegid(cred);
++        ucred_free(cred);
++    }
++
+ #endif
+
+     return peer;

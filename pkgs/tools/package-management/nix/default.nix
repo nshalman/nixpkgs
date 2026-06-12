@@ -153,6 +153,7 @@ let
     ./patches/illumos/0010-Fix-FdLock-destructor-passing-illegal-LOCK_UN-LOCK_N.patch
     ./patches/illumos/0011-Honor-build-users-group-on-illumos-in-useBuildUsers.patch
     ./patches/illumos/0012-killUser-treat-SIGKILL-suicide-as-success-on-illumos.patch
+    ./patches/illumos/0013-Populate-PeerInfo-on-illumos-via-getpeerucred.patch
   ];
 in
 lib.makeExtensible (

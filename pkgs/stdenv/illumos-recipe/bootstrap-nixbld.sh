@@ -106,13 +106,24 @@ cat <<'EOF'
 To upgrade from older (unpatched) nix to nix-2.33.6+12+:
 
   Once this script has run, /nix/store is 1775 root:nixbld and the
-  nixbld group has its gr_mem populated. The patched nix-2.33.6+12's
-  libstore picks up the build-user code path from THAT state alone
-  (not from /etc/nix/nix.conf's build-users-group), so the old outer
-  nix can no longer drive a clean rebuild of nix_2_33 end-to-end —
-  the test phase fails because the old outer sets up build dirs as
-  root-only while the inner libstore-under-test tries to switch to a
-  nixbld user. The exact mechanism is open; see bd nix-g21.
+  nixbld group exists. The patched nix-2.33.6+12 then enables the
+  build-user code path automatically — its libstore Settings()
+  constructor defaults buildUsersGroup to "nixbld" when running as
+  root (src/libstore/globals.cc), and the gtest test fixtures call
+  initLibStore(false), which skips /etc/nix/nix.conf and lets the
+  default ride.
+
+  Consequence: the old (unpatched) outer nix cannot drive a clean
+  rebuild of nix_2_33 end-to-end. The old outer sets up build dirs
+  as root-only (since its own useBuildUsers returns false on illumos),
+  but the inner libstore-under-test sees the default "nixbld" and
+  tries to setreuid into the build dir it can't write — 7 nix_api
+  store/expr tests fail.
+
+  Fresh zones built from our image don't hit this: the system nix is
+  already patched, /nix/store is set up, and rebuilds work in one
+  pass. The two-stage dance below is purely for upgrading an existing
+  zone whose system nix predates these patches.
 
   Two-stage bootstrap:
 
