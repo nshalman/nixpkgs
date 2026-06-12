@@ -105,15 +105,33 @@ cat <<'EOF'
 
 To upgrade from older (unpatched) nix to nix-2.33.6+12+:
 
-  1. Verify /etc/nix/nix.conf has 'build-users-group =' (empty), NOT
-     'build-users-group = nixbld'. The unpatched outer nix creates
-     build dirs as root-only; the new inner nix under test tries to
-     switch to a nixbld user and can't write there — test phase fails.
-  2. nix-build -A nixVersions.nix_2_33 -o /tmp/new-nix  (nixpkgs tree
-     with the useBuildUsers + killUser illumos patches).
-  3. nix-build /etc/nixos/system.nix -o /nix/var/nix/profiles/default
-  4. Set 'build-users-group = nixbld' in /etc/nix/nix.conf.
+  Once this script has run, /nix/store is 1775 root:nixbld and the
+  nixbld group has its gr_mem populated. The patched nix-2.33.6+12's
+  libstore picks up the build-user code path from THAT state alone
+  (not from /etc/nix/nix.conf's build-users-group), so the old outer
+  nix can no longer drive a clean rebuild of nix_2_33 end-to-end —
+  the test phase fails because the old outer sets up build dirs as
+  root-only while the inner libstore-under-test tries to switch to a
+  nixbld user. The exact mechanism is open; see bd nix-g21.
 
-If 'nix --version' above shows 2.33.6+12 or later, the bootstrap is
-already done and you can flip nix.conf freely.
+  Two-stage bootstrap:
+
+  # Stage 1: --keep-going past the failing test components; the
+  # nix-cli derivation still produces a usable bin/nix-2.33.6+12.
+  nix-build -A nixVersions.nix_2_33 --no-out-link --keep-going || true
+
+  # Stage 2: locate the patched binary and re-drive with it as outer.
+  PATCHED=$(find /nix/store -maxdepth 1 -name '*-nix-2.33.6+12' \
+              -not -name '*.drv' \
+              -exec test -x '{}/bin/nix' \; -print | head -1)
+  [ -n "$PATCHED" ] || { echo "stage 1 produced no patched nix binary"; exit 1; }
+  $PATCHED/bin/nix-build -A nixVersions.nix_2_33 --no-out-link
+
+  # Install + flip nix.conf.
+  nix-build /etc/nixos/system.nix -o /nix/var/nix/profiles/default
+  # Edit /etc/nix/nix.conf: set 'build-users-group = nixbld'.
+
+If 'nix --version' above already shows 2.33.6+12 or later, the
+bootstrap is done — you can rebuild nix_2_33 directly with the
+current outer, and flipping nix.conf is purely a preference.
 EOF
