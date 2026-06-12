@@ -117,7 +117,31 @@ cleanup() {
 trap cleanup EXIT
 
 # --- 1. Create + populate the dataset ----------------------------------------
-zfs create "$DATASET"
+# `zfs create` needs root (or RBAC PRIV_SYS_MOUNT + `zfs allow create,mount`).
+# When this script is driven via nix-build, the build process may have
+# dropped to a `nixbld` build user (if /etc/nix/nix.conf has
+# `build-users-group = nixbld`), which lacks those privs and fails with
+# a bare "permission denied" — masking the real cause. Capture stderr
+# and surface the likely diagnosis.
+if ! zfs_err=$(zfs create "$DATASET" 2>&1); then
+    cat >&2 <<EOF
+ERROR: zfs create "$DATASET" failed:
+  $zfs_err
+  (running as uid=$(id -u) ($(id -un)), gid=$(id -g) ($(id -gn)))
+
+This step needs root. If you are seeing "permission denied" and the
+uid above is not 0, this script is running as a nix build user — likely
+because /etc/nix/nix.conf has 'build-users-group = nixbld' on the build
+host. Image builds use ZFS create/snapshot/send, which require root
+or full RBAC delegation.
+
+Fix (build-host side): set 'build-users-group =' (empty) in
+/etc/nix/nix.conf on the host doing the build. Runtime zones can keep
+the multi-user setup; the build host stays single-user. See
+pkgs/stdenv/illumos-recipe/bootstrap-nixbld.sh for the rationale.
+EOF
+    exit 1
+fi
 MOUNT=$(zfs get -H -o value mountpoint "$DATASET")
 [[ "$MOUNT" != "-" && -d "$MOUNT" ]] || {
     echo "no mountpoint for $DATASET (got '$MOUNT')" >&2
