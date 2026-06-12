@@ -88,7 +88,13 @@ let
 
   nixConf = writeText "nix.conf" (''
     experimental-features = nix-command flakes
-    build-users-group =
+    # Multi-user mode: the patched nix-2.33.6+12 honors this on illumos
+    # (useBuildUsers __sun arm). nixbld group + nixbld1..32 users are
+    # baked into /etc/{passwd,shadow,group} by zone-root/builder.sh.
+    # /nix/store ships root:root from the tarball; nix self-corrects
+    # the dir to 1775 root:nixbld on first invocation when it sees the
+    # build-users-group setting and the matching group entry.
+    build-users-group = nixbld
     # Leave `substituters` at the compile-time default
     # (https://cache.nixos.org). FOD source tarballs are content-
     # addressed by hash and not platform-specific, so the public

@@ -112,6 +112,27 @@ q
 EOF
 fi
 
+# nixbld build users + group. nix's standalone build-user mechanism
+# (build-users-group = nixbld in nix.conf) requires `nixbld` group's
+# gr_mem field to list every nixbldN explicitly — SimpleUserLock::
+# acquire enumerates gr_mem, not users whose primary group is nixbld.
+# We write the proto-derived /etc/{passwd,shadow,group} directly rather
+# than calling useradd: useradd isn't in this builder's PATH, and
+# illumos `useradd -g` doesn't populate gr_mem anyway.
+mkdir -p "$root/var/empty"
+chmod 555 "$root/var/empty"
+members=""
+i=1
+while [ "$i" -le 32 ]; do
+    user="nixbld${i}"
+    uid=$((30000 + i))
+    echo "${user}:x:${uid}:30000:Nix build user ${i}:/var/empty:/usr/bin/false" >> "$root/etc/passwd"
+    echo "${user}:*LK*:::::::"                                                  >> "$root/etc/shadow"
+    members="${members}${members:+,}${user}"
+    i=$((i + 1))
+done
+echo "nixbld:!:30000:${members}" >> "$root/etc/group"
+
 # --- 4. SMF repository -------------------------------------------------------
 # create-smf-repo imports every manifest listed in $manifestList into a
 # fresh repository.db using svccfg pointed at our staging path.
