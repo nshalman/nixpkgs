@@ -67,7 +67,7 @@ derivation {
   createSmfRepo = ./zone-root/create-smf-repo.sh;
   profileFile = ./zone-root/profile;
   systemNix = ./zone-root/system.nix;
-  nixDaemonManifest = ./zone-root/nix-daemon.xml;
+  smfManifestDir = "${(import ./zone-root/services.nix { inherit pkgs; }).bundle}/lib/svc/manifest/site";
   builder = "/usr/bin/bash";
   args = [ ./zone-root/builder.sh ];
 

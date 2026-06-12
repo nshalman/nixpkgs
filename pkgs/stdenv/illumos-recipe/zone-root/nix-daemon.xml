@@ -1,12 +1,17 @@
 <?xml version='1.0'?>
 <!DOCTYPE service_bundle SYSTEM '/usr/share/lib/xml/dtd/service_bundle.dtd.1'>
 <!--
-  SMF manifest for the nix-daemon socket server. Imported into the
-  zone's /etc/svc/repository.db at zone-root build time by
-  zone-root/builder.sh, AFTER create-smf-repo.sh has imported the
-  standard smartos-live service set. Enabled by default; the daemon
-  exposes /nix/var/nix/daemon-socket/socket and serves build requests
-  from clients (root or unprivileged) running NIX_REMOTE=daemon.
+  SMF manifest for the nix-daemon socket server. The daemon exposes
+  /nix/var/nix/daemon-socket/socket and serves build requests from
+  clients (root or unprivileged) running NIX_REMOTE=daemon.
+
+  NO LONGER IMPORTED BY THE BUILD. The shipped manifest is generated
+  from the service definition in services.nix via smf-lib.nix; this
+  hand-written original is retained as the golden fixture for
+  ../test-smf-lib.sh, which asserts the generated manifest is
+  svccfg-export-identical to it. If the nix-daemon definition in
+  services.nix changes deliberately, update this file to match (or
+  retire the golden check).
 -->
 <service_bundle type='manifest' name='nix:nix-daemon'>
 
