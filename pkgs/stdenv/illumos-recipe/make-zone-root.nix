@@ -67,6 +67,7 @@ derivation {
   createSmfRepo = ./zone-root/create-smf-repo.sh;
   profileFile = ./zone-root/profile;
   systemNix = ./zone-root/system.nix;
+  nixDaemonManifest = ./zone-root/nix-daemon.xml;
   builder = "/usr/bin/bash";
   args = [ ./zone-root/builder.sh ];
 

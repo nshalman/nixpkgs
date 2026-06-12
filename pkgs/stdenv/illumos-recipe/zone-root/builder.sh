@@ -11,6 +11,7 @@
 #   $gnugrepPath     nix-built gnugrep (used by create-smf-repo if needed)
 #   $profileFile     /etc/profile to lay down (overwrites proto's)
 #   $systemNix       system.nix template installed at /etc/nixos/system.nix
+#   $nixDaemonManifest  SMF manifest XML for the nix-daemon service
 #
 # Adapted from MNX Cloud's imagetools/create-seed
 # (https://github.com/MNX-Cloud/imagetools). The pkgsrc-specific user
@@ -140,6 +141,20 @@ mkdir -p "$root/etc/svc"
 SMARTOS_LIVE="$smartosLive" \
 GNUGREP="$gnugrepPath/bin/grep" \
     "$createSmfRepo" "$manifestList" "$root/etc/svc/repository.db"
+
+# Import the nix-daemon manifest into the same repository.db. We
+# don't list it in $manifestList because create-smf-repo only looks
+# under $smartosLive/proto/lib/svc/manifest/, and shipping a custom
+# manifest into that tree would mean polluting the smartos-live proto.
+# Calling svccfg directly with SVCCFG_REPOSITORY pointed at our staging
+# db is the same mechanism create-smf-repo uses internally; the result
+# is a single repository.db that contains both the standard smartos
+# services and our nix-daemon service.
+chmod u+w "$root/etc/svc/repository.db"
+SVCCFG_REPOSITORY="$root/etc/svc/repository.db" \
+SVCCFG_CONFIGD_PATH="$smartosLive/proto/lib/svc/bin/svc.configd" \
+    "$smartosLive/proto/usr/sbin/svccfg" import "$nixDaemonManifest"
+chmod 444 "$root/etc/svc/repository.db"
 
 # --- 5. zoneinit features declaration ----------------------------------------
 # vmadm's checkDatasetProvisionable() rejects the dataset unless
