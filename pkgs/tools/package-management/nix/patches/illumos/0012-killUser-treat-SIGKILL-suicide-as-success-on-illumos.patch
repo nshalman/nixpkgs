@@ -1,0 +1,53 @@
+From: Nahum Shalman <nshalman@edgecast.io>
+Date: Thu, 12 Jun 2026 02:30:00 +0000
+Subject: [PATCH] killUser: treat child SIGKILL exit as success on illumos
+
+killUser forks a child, setuid's to the build user, and calls
+kill(-1, SIGKILL) to wipe any stragglers. On Linux this works because
+kill(-1, sig) from a non-root process is documented to skip the caller.
+On illumos, kill(-1, sig) from a non-root process sends the signal to
+all processes owned by that uid *including the caller* — so the child
+suicides immediately after the kill returns 0.
+
+The child therefore exits via SIGKILL instead of reaching _exit(0), and
+the parent throws "cannot kill processes for uid 'NNN': failed due to
+signal 9 (Killed)". This was invisible before because useBuildUsers()
+returned false on illumos (patch 0011 fixes that); now any build that
+uses build users hits this error during cleanup.
+
+macOS has the same kill(-1) semantics but works around it with
+`syscall(SYS_kill, -1, SIGKILL, false)` (third arg false = "don't
+follow POSIX, don't kill self"). illumos has no equivalent third arg.
+
+The least-invasive fix: on illumos, accept WIFSIGNALED && WTERMSIG ==
+SIGKILL from the child as success. Either every target process got the
+kill (good outcome, child died as a side effect of its own request) or
+the child got killed externally — but kill(-1, SIGKILL) on uid N is
+the only way to deliver SIGKILL to a process running as N from inside
+the child, so external SIGKILL is implausible. A proper fix would
+enumerate /proc and kill each non-self pid individually; deferred.
+
+---
+ src/libutil/unix/processes.cc | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+--- a/src/libutil/unix/processes.cc
++++ b/src/libutil/unix/processes.cc
+@@ -151,8 +151,17 @@ void killUser(uid_t uid)
+     });
+
+     int status = pid.wait();
++#ifdef __sun
++    /* illumos kill(-1, sig) from a non-root process signals the caller
++       too, so the child suicides successfully and exits via SIGKILL
++       instead of _exit(0). Accept that as the expected outcome. */
++    if (status != 0
++        && !(WIFSIGNALED(status) && WTERMSIG(status) == SIGKILL))
++        throw Error("cannot kill processes for uid '%1%': %2%", uid, statusToString(status));
++#else
+     if (status != 0)
+         throw Error("cannot kill processes for uid '%1%': %2%", uid, statusToString(status));
++#endif
+
+     /* !!! We should really do some check to make sure that there are
+        no processes left running under `uid', but there is no portable

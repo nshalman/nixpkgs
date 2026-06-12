@@ -1,0 +1,42 @@
+From: Nahum Shalman <nshalman@edgecast.io>
+Date: Thu, 12 Jun 2026 02:00:00 +0000
+Subject: [PATCH] Honor build-users-group on illumos in useBuildUsers
+
+useBuildUsers() in src/libstore/unix/user-lock.cc gates the
+build-user-switching code path in DerivationBuilderImpl::startBuild()
+(src/libstore/unix/build/derivation-builder.cc:713). The function has
+per-platform arms for __linux__ (autoAllocateUids + buildUsersGroup),
+__APPLE__/__FreeBSD__ (buildUsersGroup only), and an #else that
+unconditionally returns false. illumos falls through to #else, so even
+with build-users-group set in nix.conf, builds run as root.
+
+This bypasses the entire build-user mechanism: SimpleUserLock::acquire,
+the setreuid in the child, and the chown of the build directory all
+get skipped. Externally this looks like nix reading the setting (it
+appears in `nix show-config`) but ignoring it.
+
+The illumos arm matches the FreeBSD/Apple shape: SimpleUserLock is
+portable (its one __linux__-only call, get_group_list for supplementary
+GIDs, is already #ifdef-guarded), and autoAllocateUids is intentionally
+not supported (it needs user namespaces, which illumos lacks). Add
+__sun to the existing #elif arm.
+
+After this patch, with build-users-group = nixbld in nix.conf, a
+nixbld group + nixbldN users in /etc/passwd, and root invocation, the
+build phase forks and setreuid's to one of the nixbld users.
+
+---
+ src/libstore/unix/user-lock.cc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/src/libstore/unix/user-lock.cc
++++ b/src/libstore/unix/user-lock.cc
+@@ -227,7 +227,7 @@ bool useBuildUsers()
+ #ifdef __linux__
+     static bool b = (settings.buildUsersGroup != "" || settings.autoAllocateUids) && isRootUser();
+     return b;
+-#elif defined(__APPLE__) || defined(__FreeBSD__)
++#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__sun)
+     static bool b = settings.buildUsersGroup != "" && isRootUser();
+     return b;
+ #else
