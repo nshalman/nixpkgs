@@ -932,6 +932,15 @@ stdenvNoCC.mkDerivation {
       echo "-D__ANDROID_API__=${targetPlatform.androidSdkVersion}" >> $out/nix-support/cc-cflags
     ''
 
+    # illumos gives a translation unit the thread-safe errno only under
+    # _REENTRANT, _TS_ERRNO or _POSIX_C_SOURCE >= 199506L, and compilers define
+    # none of them unless given -pthread. Anything else uses libc's global
+    # `errno`, which is also the main thread's, so a library built that way
+    # overwrites the main thread's errno from whichever thread it runs on.
+    + optionalString targetPlatform.isSunOS ''
+      echo "-D_TS_ERRNO" >> $out/nix-support/cc-cflags
+    ''
+
     # There are a few tools (to name one libstdcxx5) which do not work
     # well with multi line flags, so make the flags single line again
     + ''
