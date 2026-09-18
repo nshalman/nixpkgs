@@ -43,7 +43,17 @@ stdenv.mkDerivation (finalAttrs: {
     # required for musl, android, march=native
     "--disable-werror"
   ]
-  ++ lib.optional stdenv.hostPlatform.isCygwin "--disable-symvers";
+  ++ lib.optionals stdenv.hostPlatform.isSunOS [
+    # illumos declares memset_s() only under __STDC_WANT_LIB_EXT1__, but
+    # configure finds the symbol in libc and sets HAVE_MEMSET_S. crypt-port.h
+    # then prefers it to explicit_bzero(), which illumos declares
+    # unconditionally, and the build fails on the implicit declaration.
+    "ac_cv_func_memset_s=no"
+  ]
+  # The Solaris link-editor's mapfile syntax is not GNU ld's version-script
+  # syntax, which is what libxcrypt generates:
+  #   ld: fatal: ./libcrypt.map: 1: expected a '=', ':', '|', or '@'
+  ++ lib.optional (stdenv.hostPlatform.isCygwin || stdenv.hostPlatform.isSunOS) "--disable-symvers";
 
   makeFlags =
     let
@@ -65,6 +75,14 @@ stdenv.mkDerivation (finalAttrs: {
   enableParallelBuilding = true;
 
   doCheck = true;
+
+  # The control case of test/explicit-bzero expects a secret that nothing
+  # cleared to survive on a reused stack ("no clear/test: expected some got
+  # 0"); on illumos it does not. The cases that matter pass: "explicit
+  # clear/test: expected 0 got 0".
+  ${if stdenv.hostPlatform.isSunOS then "checkFlags" else null} = [
+    "XFAIL_TESTS=test/explicit-bzero"
+  ];
 
   passthru = {
     tests = {
