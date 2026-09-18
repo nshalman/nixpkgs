@@ -6,7 +6,8 @@
   pkg-config,
 
   # Optional dependencies
-  enableApp ? with stdenv.hostPlatform; !(isWindows || isCygwin) && !isStatic,
+  # nghttpx uses SO_REUSEPORT unconditionally, which illumos headers only gained after 2021.
+  enableApp ? with stdenv.hostPlatform; !(isWindows || isCygwin || isSunOS) && !isStatic,
   c-aresMinimal,
   libev,
   openssl,
