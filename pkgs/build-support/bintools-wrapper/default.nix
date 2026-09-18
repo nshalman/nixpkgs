@@ -155,6 +155,11 @@ let
       "/usr/lib/dyld"
     else if targetPlatform.isFreeBSD then
       "${sharedLibraryLoader}/libexec/ld-elf.so.1"
+    # illumos binaries use the runtime linker of the system they run on, unless
+    # the libc says otherwise.
+    else if targetPlatform.isSunOS then
+      sharedLibraryLoader.dynamicLinker
+        or (if targetPlatform.isx86_64 then "/usr/lib/amd64/ld.so.1" else "/usr/lib/ld.so.1")
     else if targetPlatform.isOpenBSD then
       "${sharedLibraryLoader}/libexec/ld.so"
     else if hasSuffix "pc-gnu" targetPlatform.config then
@@ -233,14 +238,13 @@ stdenvNoCC.mkDerivation {
 
         ldPath="${bintools_bin}/bin"
       ''
-
-      # Solaris needs an additional ld wrapper.
-      + optionalString (targetPlatform.isSunOS && nativePrefix != "") ''
-        ldPath="${nativePrefix}/bin"
-        exec="$ldPath/${targetPrefix}ld"
-        wrap ld-solaris ${./ld-solaris-wrapper.sh}
-      ''
   )
+
+  # Solaris needs an additional ld wrapper.
+  + optionalString (targetPlatform.linker == "solaris") ''
+    wrap ${targetPrefix}ld-solaris ${./ld-solaris-wrapper.sh} "$ldPath/${targetPrefix}ld"
+    ld="$out/bin/${targetPrefix}ld-solaris"
+  ''
 
   # If we are asked to wrap `gas` and this bintools has it,
   # then symlink it (`as` will be symlinked next).
@@ -383,6 +387,12 @@ stdenvNoCC.mkDerivation {
 
     + optionalString (targetPlatform.isAvr || targetPlatform.isWindows) ''
       hardening_unsupported_flags+=" relro bindnow"
+    ''
+
+    # The Solaris link-editor has no -z relro, and says so in words the probe
+    # above does not look for.
+    + optionalString (targetPlatform.linker == "solaris") ''
+      hardening_unsupported_flags+=" relro"
     ''
 
     + optionalString (libc != null && targetPlatform.isAvr) ''
