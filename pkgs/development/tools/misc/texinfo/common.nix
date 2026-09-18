@@ -104,7 +104,6 @@ stdenv.mkDerivation {
   ]
   ++ optionals stdenv.hostPlatform.isSunOS [
     libiconv
-    gawk
   ]
   ++ optional interactive ncurses;
 
@@ -120,8 +119,7 @@ stdenv.mkDerivation {
   ]
   ++ optionals (crossBuildTools && lib.versionAtLeast version "7.1") [
     "texinfo_cv_sys_iconv_converts_euc_cn=yes"
-  ]
-  ++ optional stdenv.hostPlatform.isSunOS "AWK=${gawk}/bin/awk";
+  ];
 
   installFlags = [ "TEXMF=$(out)/texmf-dist" ];
   installTargets = [
