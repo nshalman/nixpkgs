@@ -40,12 +40,6 @@ let
     ./CVE-2026-8376.patch
   ]
 
-  # Fix build on Solaris on x86_64
-  # See also:
-  # * perl tracker: https://github.com/Perl/perl5/issues/9669
-  # * netbsd tracker: https://gnats.netbsd.org/cgi-bin/query-pr-single.pl?number=44999
-  ++ lib.optional stdenv.hostPlatform.isSunOS ./ld-shared.patch
-
   # Don't pass -no-cpp-precomp, even if it is "supported"
   #
   # cpp-precomp is a relic from NeXT days, when there was a separate
