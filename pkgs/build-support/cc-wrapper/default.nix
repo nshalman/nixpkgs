@@ -718,6 +718,13 @@ stdenvNoCC.mkDerivation {
           if isArocc then "I" else "idirafter"
         }" "${libc_dev}${libc.incdir or "/include"}" >> $out/nix-support/libc-cflags
       ''
+      # On illumos the libc is a sysroot: headers under usr/include, crt objects
+      # and link libraries under usr/lib. The compiler has /usr/include and
+      # /usr/lib built in, so -idirafter and -B alone leave the build host's copies
+      # in the search path. --sysroot rebases the built-in paths instead.
+      + optionalString targetPlatform.isSunOS ''
+        echo "--sysroot=${libc_lib}" >> $out/nix-support/libc-cflags
+      ''
       + optionalString isGNU ''
         for dir in "${cc}"/lib/gcc/*/*/include-fixed; do
           include '-idirafter' ''${dir} >> $out/nix-support/libc-cflags
