@@ -4,7 +4,6 @@
   fetchurl,
   m4,
   perl,
-  help2man,
 }:
 
 # Note: this package is used for bootstrapping fetchurl, and thus
@@ -36,8 +35,7 @@ stdenv.mkDerivation (finalAttrs: {
   nativeBuildInputs = [
     m4
     perl
-  ]
-  ++ lib.optional stdenv.hostPlatform.isSunOS help2man;
+  ];
   propagatedBuildInputs = [ m4 ];
 
   enableParallelBuilding = true;
