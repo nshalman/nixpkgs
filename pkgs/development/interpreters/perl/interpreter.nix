@@ -245,6 +245,10 @@ stdenv.mkDerivation (
         "-Uversiononly"
       ]
       ++ lib.optional stdenv.hostPlatform.isSunOS "-Dcc=gcc"
+      # By default Configure on Solaris learns what libc provides by running nm
+      # over a libc it looks for itself, and finds the build host's /lib/libc.so.
+      # That is not the libc being linked against. Probe with the compiler instead.
+      ++ lib.optional stdenv.hostPlatform.isSunOS "-Uusenm"
       ++ lib.optional enableThreading "-Dusethreads"
       ++ lib.optional (!enableCrypt) "-A clear:d_crypt_r"
       ++ lib.optionals (stdenv.hostPlatform.isFreeBSD && crossCompiling && enableCrypt) [
