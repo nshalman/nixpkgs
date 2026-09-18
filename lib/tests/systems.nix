@@ -266,6 +266,40 @@ lib.runTests (
         }).parsed.cpu.arch;
       expected = "i686";
     };
+    test_elaborate_solaris_versioned_triple = {
+      expr =
+        let
+          sys = lib.systems.elaborate { config = "x86_64-pc-solaris2.11"; };
+        in
+        {
+          inherit (sys) system config;
+          vendor = sys.parsed.vendor.name;
+        };
+      expected = {
+        system = "x86_64-solaris";
+        config = "x86_64-pc-solaris2.11";
+        vendor = "pc";
+      };
+    };
+    test_elaborate_solaris_defaults = {
+      expr =
+        let
+          sys = lib.systems.elaborate "x86_64-solaris";
+        in
+        {
+          inherit (sys) libc linker;
+          uname = sys.uname.system;
+          rustcTarget = sys.rust.rustcTarget;
+          rustOs = sys.rust.platform.os;
+        };
+      expected = {
+        libc = "illumos-libc";
+        linker = "solaris";
+        uname = "SunOS";
+        rustcTarget = "x86_64-unknown-illumos";
+        rustOs = "illumos";
+      };
+    };
     test_equals_reelaborate_overridden_platform = {
       expr =
         let

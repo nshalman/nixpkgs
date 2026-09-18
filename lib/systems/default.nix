@@ -179,6 +179,11 @@ let
             "oblibc"
           else if final.isNetBSD then
             "nblibc"
+          # The x86_64-solaris double stands for illumos; its libc ships with the
+          # operating system and is linked through a sysroot of headers and link
+          # libraries rather than being built here.
+          else if final.isSunOS then
+            "illumos-libc"
           else if final.isAvr then
             "avrlibc"
           else if final.isGhcjs then
@@ -199,6 +204,10 @@ let
             "lld"
           else if final.isDarwin then
             "cctools"
+          # illumos uses the Solaris link-editor, which has its own command-line
+          # syntax, not GNU ld.
+          else if final.isSunOS then
+            "solaris"
           # "bfd" and "gold" both come from GNU binutils. The existence of Gold
           # is why we use the more obscure "bfd" and not "binutils" for this
           # choice.
@@ -240,6 +249,8 @@ let
               netbsd = "NetBSD";
               freebsd = "FreeBSD";
               openbsd = "OpenBSD";
+              # illumos and Solaris both report the kernel name "SunOS".
+              solaris = "SunOS";
               wasi = "Wasi";
               redox = "Redox";
               genode = "Genode";
@@ -459,6 +470,8 @@ let
                   "macos"
                 else if final.isWasm && !final.isWasi then
                   "unknown" # Needed for {wasm32,wasm64}-unknown-unknown.
+                else if final.isSunOS then
+                  "illumos"
                 else
                   final.parsed.kernel.name;
 
@@ -521,6 +534,10 @@ let
                   # currently use WASI 0.1 as default for compatibility. Custom
                   # users can set `rust.rustcTargetSpec` to override it.
                   "${cpu_}-wasip1"
+                else if final.isSunOS then
+                  # Rust names the target after the operating system, not the
+                  # "solaris" kernel that GNU triples use for it.
+                  "${cpu_}-unknown-illumos"
                 else
                   "${cpu_}-${vendor_}-${kernel.name}${optionalString (abi.name != "unknown") "-${abi_}"}";
             in

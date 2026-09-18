@@ -855,6 +855,7 @@ rec {
           || hasPrefix "freebsd" (elemAt l 2)
           || hasPrefix "netbsd" (elemAt l 2)
           || hasPrefix "openbsd" (elemAt l 2)
+          || hasPrefix "solaris" (elemAt l 2)
           || hasPrefix "genode" (elemAt l 2)
           || hasPrefix "wasm32" (elemAt l 0)
         then
@@ -923,6 +924,8 @@ rec {
             getKernel "darwin"
           else if hasPrefix "netbsd" args.kernel then
             getKernel "netbsd"
+          else if hasPrefix "solaris" args.kernel then
+            getKernel "solaris"
           else
             getKernel (removeAbiSuffix args.kernel);
         abi =
