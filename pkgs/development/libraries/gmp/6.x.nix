@@ -51,7 +51,10 @@ let
       #
       # The "configure" script relies on c17 and below semantics for "long long
       # reliability test 1" (defined in aclocal.m4)
-      "CFLAGS=-std=c99"
+      #
+      # On illumos a strict -std=c99 hides isascii(), which printf/doprnt.c
+      # uses; the GNU dialect has the same pre-C23 semantics without that.
+      "CFLAGS=-std=${if stdenv.hostPlatform.isSunOS then "gnu99" else "c99"}"
 
       (lib.enableFeature cxx "cxx")
       # Build a "fat binary", with routines for several sub-architectures
