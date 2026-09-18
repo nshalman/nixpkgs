@@ -242,6 +242,11 @@ stdenvNoCC.mkDerivation {
 
   # Solaris needs an additional ld wrapper.
   + optionalString (targetPlatform.linker == "solaris") ''
+    # A libc whose runtime linker lives elsewhere is only linked against: at
+    # run time the system provides libc, so its directories stay out of RUNPATH.
+    export linkOnlyLibc=${
+      optionalString (libc != null && !lib.hasPrefix "${libc_lib}/" dynamicLinker) libc_lib
+    }
     wrap ${targetPrefix}ld-solaris ${./ld-solaris-wrapper.sh} "$ldPath/${targetPrefix}ld"
     ld="$out/bin/${targetPrefix}ld-solaris"
   ''

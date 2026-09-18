@@ -26,6 +26,15 @@ while (( $# )); do
         -dynamic-linker) interp=(-I "$2"); shift ;;
         -dynamic-linker=*) interp=(-I "${1#*=}") ;;
         -r|--relocatable) relocatable=1; argsAfter+=("$1") ;;
+        -rpath)
+            # ld-wrapper.sh adds a RUNPATH entry for every store directory that supplies a requested library.
+            # A link-only libc is one of them, but it must not be found at run time.
+            if [[ -n "@linkOnlyLibc@" && "$2" == "@linkOnlyLibc@"/* ]]; then
+                :
+            else
+                argsAfter+=("$1" "$2")
+            fi
+            shift ;;
         *)    argsAfter+=("$1") ;;
     esac
     shift
