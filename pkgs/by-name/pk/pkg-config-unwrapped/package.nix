@@ -29,7 +29,10 @@ stdenv.mkDerivation (finalAttrs: {
     ./gcc-15.patch
   ]
   ++ lib.optional (!vanilla) ./requires-private.patch
-  ++ lib.optional stdenv.hostPlatform.isCygwin ./2.36.3-not-win32.patch;
+  ++ lib.optional stdenv.hostPlatform.isCygwin ./2.36.3-not-win32.patch
+  # illumos declares iconv() with a `const char **` input buffer; the bundled glib passes a `char **`, which
+  # GCC 14 rejects.
+  ++ lib.optional stdenv.hostPlatform.isSunOS ./illumos-iconv-cast.patch;
 
   # These three tests fail due to a (desired) behavior change from our ./requires-private.patch
   postPatch =
