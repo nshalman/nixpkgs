@@ -40,6 +40,9 @@ stdenv.mkDerivation (finalAttrs: {
   doCheck =
     !stdenv.hostPlatform.isDarwin
     && !stdenv.hostPlatform.isFreeBSD
+    # gnulib's own test-accept.c does not compile: illumos declares accept() with a `void *` length argument
+    # outside the XPG namespace, and GCC 14 rejects the signature check. findutils itself builds.
+    && !stdenv.hostPlatform.isSunOS
     && !(stdenv.hostPlatform.libc == "glibc" && stdenv.hostPlatform.isi686)
     && (stdenv.hostPlatform.libc != "musl")
     && stdenv.hostPlatform == stdenv.buildPlatform;
