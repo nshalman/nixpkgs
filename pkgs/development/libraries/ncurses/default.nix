@@ -62,8 +62,9 @@ stdenv.mkDerivation (finalAttrs: {
     "--enable-symlinks"
     "--with-manpage-format=normal"
     "--disable-stripping"
-    "--with-versioned-syms"
   ]
+  # The Solaris link-editor has no --version-script; its mapfile syntax is a different one.
+  ++ lib.optional (!stdenv.hostPlatform.isSunOS) "--with-versioned-syms"
   ++ lib.optional (!finalAttrs.separateDebugInfo) "--without-debug"
   ++ lib.optional (unicodeSupport && abiVersion == "5") "--enable-widec"
   ++ lib.optional (!unicodeSupport && abiVersion == "6") "--disable-widec"
