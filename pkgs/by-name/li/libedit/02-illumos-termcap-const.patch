@@ -1,0 +1,51 @@
+--- a/src/sys.h
++++ b/src/sys.h
+@@ -125,11 +125,11 @@ typedef unsigned int	u_int32_t;
+
+ #if defined(__sun)
+ extern int tgetent(char *, const char *);
+-extern int tgetflag(char *);
+-extern int tgetnum(char *);
++extern int tgetflag(const char *);
++extern int tgetnum(const char *);
+ extern int tputs(const char *, int, int (*)(int));
+ extern char* tgoto(const char*, int, int);
+-extern char* tgetstr(char*, char**);
++extern char* tgetstr(const char*, char**);
+ #endif
+
+ #endif /* _h_sys */
+--- a/src/terminal.h
++++ b/src/terminal.h
+@@ -82,11 +82,11 @@ typedef struct el_terminal_t {
+
+ #ifdef __sun
+ extern int tgetent(char *, const char *);
+-extern int tgetflag(char *);
+-extern int tgetnum(char *);
++extern int tgetflag(const char *);
++extern int tgetnum(const char *);
+ extern int tputs(const char *, int, int (*)(int));
+ extern char* tgoto(const char*, int, int);
+-extern char* tgetstr(char*, char**);
++extern char* tgetstr(const char*, char**);
+ #endif
+
+ libedit_private void	terminal_move_to_line(EditLine *, int);
+--- a/src/terminal.c
++++ b/src/terminal.c
+@@ -69,11 +69,11 @@ extern int tgetent(char *, const char *);
+
+ #if defined(__sun)
+ extern int tgetent(char *, const char *);
+-extern int tgetflag(char *);
+-extern int tgetnum(char *);
++extern int tgetflag(const char *);
++extern int tgetnum(const char *);
+ extern int tputs(const char *, int, int (*)(int));
+ extern char* tgoto(const char*, int, int);
+-extern char* tgetstr(char*, char**);
++extern char* tgetstr(const char*, char**);
+ #endif
+
+ #ifdef _REENTRANT

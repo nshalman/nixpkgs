@@ -23,7 +23,10 @@ stdenv.mkDerivation (finalAttrs: {
 
   patches = [
     ./01-cygwin.patch
-  ];
+  ]
+  # For __sun, libedit declares the termcap functions itself, with `char *` names. ncurses' <termcap.h>
+  # declares them with `const char *`, and the two conflict.
+  ++ lib.optional stdenv.hostPlatform.isSunOS ./02-illumos-termcap-const.patch;
 
   nativeBuildInputs = [
     autoreconfHook
