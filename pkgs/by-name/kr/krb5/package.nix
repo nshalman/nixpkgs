@@ -130,6 +130,21 @@ stdenv.mkDerivation (finalAttrs: {
   # necessary for FreeBSD code path in configure
   + ''
     substituteInPlace ./config/config.guess --replace-fail /usr/bin/uname uname
+  ''
+  # On SunOS `sun` is a predefined macro that expands to 1, and krb5 uses it as a variable name in its
+  # sockaddr_un code. krb5 also tests `defined(sun)` elsewhere, so rename the variable instead of undefining it.
+  + lib.optionalString stdenv.hostPlatform.isSunOS ''
+    for f in lib/krb5/os/addr.c lib/krb5/os/locate_kdc.c lib/apputils/net-server.c; do
+      sed -i \
+        -e 's/struct sockaddr_un \*sun/struct sockaddr_un *sunaddr/g' \
+        -e 's/struct sockaddr_un sun/struct sockaddr_un sunaddr/g' \
+        -e 's/sun\.sun_/sunaddr.sun_/g' \
+        -e 's/sun->sun_/sunaddr->sun_/g' \
+        -e 's/sizeof(sun)/sizeof(sunaddr)/g' \
+        -e 's/\&sun)/\&sunaddr)/g' \
+        -e 's/\&sun,/\&sunaddr,/g' \
+        "$f"
+    done
   '';
 
   libFolders = [
