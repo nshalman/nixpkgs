@@ -87,6 +87,15 @@ lib.warnIf (withDocs != null)
     # this hack should be removed.
     + lib.optionalString stdenv.cc.isClang ''
       -std=c23
+    ''
+    # HEREDOC_PIPESIZE=4096 disables bash's pipe optimization for here-documents larger than PIPE_BUF. illumos
+    # has no F_GETPIPE_SZ, so the run-time check in here_document_to_fd (redir.c) is compiled out, and
+    # heredoc_write then does a single blocking write() into a pipe nobody is reading yet. If the document is
+    # larger than the pipe's real capacity, bash deadlocks; seen while autoconf's config.status is being written.
+    # 4096 sends anything larger through the temporary-file path, as upstream's freebsd*|midnightbsd* configure
+    # arm does.
+    + lib.optionalString stdenv.hostPlatform.isSunOS ''
+      -DHEREDOC_PIPESIZE=4096
     '';
 
     patchFlags = [ "-p0" ];
