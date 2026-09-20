@@ -28,6 +28,8 @@ let
 
   stagesFreeBSD = import ./freebsd args;
 
+  stagesIllumos = import ./illumos args;
+
   # On Linux systems, the standard build environment consists of Nix-built
   # instances glibc and the `standard' Unix tools, i.e., the Posix utilities,
   # the GNU C compiler, and so on.
@@ -54,7 +56,7 @@ else if localSystem.isDarwin then
 else
   {
     # switch
-    x86_64-solaris = stagesNix;
+    x86_64-solaris = stagesIllumos;
     i686-cygwin = stagesNative;
     x86_64-cygwin = stagesNative;
     x86_64-freebsd = stagesFreeBSD;
