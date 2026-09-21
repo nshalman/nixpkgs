@@ -1,5 +1,6 @@
 let
-  withGold = platform: platform.isElf && !platform.isRiscV && !platform.isLoongArch64;
+  withGold =
+    platform: platform.isElf && !platform.isRiscV && !platform.isLoongArch64 && !platform.isSunOS;
 in
 
 {
