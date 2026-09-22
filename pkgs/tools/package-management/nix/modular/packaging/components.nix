@@ -127,6 +127,8 @@ let
             && !stdenv.hostPlatform.isStatic
             # LTO breaks exception handling on x86-64-darwin.
             && stdenv.system != "x86_64-darwin"
+            # gcc 14 on illumos crashes in lto-partition.cc when linking libnixstore.
+            && !stdenv.hostPlatform.isSunOS
           )
           ''
             case "$mesonBuildType" in
@@ -159,6 +161,9 @@ let
       let
         interpositionFlags = [
           "-fno-semantic-interposition"
+        ]
+        # -Bsymbolic-functions is a GNU ld option; the illumos linker rejects it.
+        ++ lib.optionals (!stdenv.hostPlatform.isSunOS) [
           "-Wl,-Bsymbolic-functions"
         ];
       in

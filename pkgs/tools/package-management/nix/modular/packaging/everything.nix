@@ -112,6 +112,9 @@ stdenv.mkDerivation (finalAttrs: {
   outputs = [
     "out"
     "dev"
+  ]
+  # The manual is built with mdbook, which needs rust, which has no SunOS toolchain.
+  ++ lib.optionals (!stdenv.hostPlatform.isSunOS) [
     "doc"
     "man"
   ];
@@ -146,7 +149,9 @@ stdenv.mkDerivation (finalAttrs: {
     nix-expr-tests.tests.run
     nix-fetchers-tests.tests.run
     nix-flake-tests.tests.run
-
+  ]
+  # The functional tests' inputs (git, mercurial) pull in rust, which has no SunOS toolchain.
+  ++ lib.optionals (!stdenv.hostPlatform.isSunOS) [
     # Make sure the functional tests have passed
     nix-functional-tests
   ]
@@ -185,6 +190,8 @@ stdenv.mkDerivation (finalAttrs: {
         lndir $lib $dev
       done
 
+    ''
+    + lib.optionalString (!stdenv.hostPlatform.isSunOS) ''
       # Forwarded outputs
       ln -sT ${nix-manual} $doc
       ln -sT ${nix-manual.man} $man
