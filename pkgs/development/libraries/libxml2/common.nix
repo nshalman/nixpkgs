@@ -75,7 +75,13 @@ stdenv'.mkDerivation (finalAttrs: {
   ]
   ++
     lib.optionals
-      (stdenv.hostPlatform.isDarwin || stdenv.hostPlatform.isMinGW || stdenv.hostPlatform.isCygwin)
+      (
+        stdenv.hostPlatform.isDarwin
+        || stdenv.hostPlatform.isMinGW
+        || stdenv.hostPlatform.isCygwin
+        # the libc iconv reads its conversion tables from the host's /usr/lib/iconv
+        || stdenv.hostPlatform.isSunOS
+      )
       [
         libiconv
       ]
