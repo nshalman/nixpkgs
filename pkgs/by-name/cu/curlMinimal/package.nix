@@ -158,6 +158,11 @@ stdenv.mkDerivation (finalAttrs: {
     # Not having this causes curl’s `configure` script to fail with static builds on Darwin because
     # some of curl’s propagated inputs need libiconv.
     NIX_LDFLAGS = "-liconv";
+  }
+  // lib.optionalAttrs stdenv.hostPlatform.isSunOS {
+    # vquic uses CMSG_SPACE and msghdr.msg_control, which illumos only exposes with the X/Open
+    # socket API and its extensions.
+    NIX_CFLAGS_COMPILE = "-D_XOPEN_SOURCE=600 -D__EXTENSIONS__";
   };
 
   nativeBuildInputs = [
