@@ -58,7 +58,8 @@ stdenv.mkDerivation (finalAttrs: {
     license = lib.licenses.asl20;
     platforms = lib.platforms.unix;
     # https://github.com/awslabs/aws-c-common/issues/1175
-    badPlatforms = lib.platforms.bigEndian;
+    # illumos: posix_memalign(), PRIu64 and INT64_MIN are undeclared under its compiler flags
+    badPlatforms = lib.platforms.bigEndian ++ lib.platforms.illumos;
     maintainers = with lib.maintainers; [
       r-burns
     ];
