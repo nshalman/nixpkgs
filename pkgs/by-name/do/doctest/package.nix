@@ -18,11 +18,17 @@ stdenv.mkDerivation (finalAttrs: {
 
   nativeBuildInputs = [ cmake ];
 
-  cmakeFlags = lib.optionals stdenv.hostPlatform.isStatic [
-    # One of the examples tests shared library support
-    # and fails linking.
-    "-DDOCTEST_WITH_TESTS=OFF"
-  ];
+  cmakeFlags =
+    lib.optionals stdenv.hostPlatform.isStatic [
+      # One of the examples tests shared library support
+      # and fails linking.
+      "-DDOCTEST_WITH_TESTS=OFF"
+    ]
+    ++ lib.optionals stdenv.hostPlatform.isSunOS [
+      # doctest's platform detection falls through to Linux for anything that is not
+      # Windows or Apple, and test_platform compares it with CMake's SunOS.
+      "-DCMAKE_CTEST_ARGUMENTS=-E;test_platform"
+    ];
 
   doCheck = true;
 
