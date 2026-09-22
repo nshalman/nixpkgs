@@ -68,6 +68,15 @@ stdenv.mkDerivation rec {
   # gcc-15 uses c23 standard, which removed non-prototype function declarations.
   postPatch = ''
     sed -i '/localtime()/ d' unix/unxcfg.h
+  ''
+  # The configure test for memcpy() does not include <string.h>, so it fails with a modern
+  # compiler and ZMEM gets defined, which turns memcpy() into bcopy(); bcopy() is declared in
+  # <strings.h>, which <string.h> does not include on illumos. Leave ZMEM out.
+  + lib.optionalString stdenv.hostPlatform.isSunOS ''
+    sed -i '/CFLAGSR=.*-DZMEM/d' unix/configure
+    # <utime.h> is included only for HP-UX and the Sun compiler; gcc on illumos needs it too.
+    substituteInPlace unix/unxcfg.h \
+      --replace-fail '(defined(__hpux) || defined(__SUNPRO_C))' '(defined(__hpux) || defined(__sun))'
   '';
 
   nativeBuildInputs = [ bzip2 ];
