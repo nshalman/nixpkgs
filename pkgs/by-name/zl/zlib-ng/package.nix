@@ -53,4 +53,7 @@ stdenv.mkDerivation (finalAttrs: {
     platforms = lib.platforms.all;
     maintainers = with lib.maintainers; [ izorkin ];
   };
+}
+// lib.optionalAttrs stdenv.hostPlatform.isSunOS {
+  patches = [ ./no-version-script-sunos.patch ];
 })
