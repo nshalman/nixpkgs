@@ -264,6 +264,9 @@ stdenv.mkDerivation (finalAttrs: {
     "INSTALL=install"
     "NO_INET_NTOP="
     "NO_INET_PTON="
+    # config.mak.uname sets this to the XPG4 tool directories, and the Makefile puts it in front of PATH
+    # for every command it runs, the test suite included, ahead of the GNU tools the build was given
+    "SANE_TOOL_PATH="
   ]
   ++ (if stdenv.hostPlatform.isDarwin then [ "NO_APPLE_COMMON_CRYPTO=1" ] else [ "sysconfdir=/etc" ])
   ++ lib.optionals stdenv.hostPlatform.isMusl [
