@@ -39,11 +39,12 @@ stdenv.mkDerivation (finalAttrs: {
   cmakeFlags = [
     # The examples try to link against `ngtcp2_crypto_ossl` and `ngtcp2` libraries.
     # This works in the dynamic case where the targets have the same name, but not here where they're suffixed with `_static`.
-    # Also, the examples depend on Linux-specific APIs, so we avoid them on FreeBSD/Cygwin too.
+    # Also, the examples depend on Linux-specific APIs, so we avoid them on FreeBSD/Cygwin/illumos too.
     (lib.cmakeBool "ENABLE_LIB_ONLY" (
       stdenv.hostPlatform.isStatic
       || stdenv.hostPlatform.isFreeBSD
       || stdenv.hostPlatform.isCygwin
+      || stdenv.hostPlatform.isSunOS
       || stdenv.hostPlatform.isWindows
     ))
     (lib.cmakeBool "ENABLE_SHARED_LIB" (!stdenv.hostPlatform.isStatic))
