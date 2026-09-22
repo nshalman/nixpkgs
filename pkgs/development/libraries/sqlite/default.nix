@@ -123,6 +123,13 @@ stdenv.mkDerivation rec {
     echo ""
     echo "NIX_CFLAGS_COMPILE = $NIX_CFLAGS_COMPILE"
     echo ""
+  ''
+  # The library has no SONAME by default, and the illumos linker then records the path it was
+  # linked with in every consumer. configure's SONAME probe links an executable, which the illumos
+  # linker rejects with a soname, so set the flag in the Makefile instead of via --soname.
+  + lib.optionalString stdenv.hostPlatform.isSunOS ''
+    grep -q '^LDFLAGS.libsqlite3.soname = ' Makefile
+    sed -i 's/^LDFLAGS\.libsqlite3\.soname = .*/LDFLAGS.libsqlite3.soname = -Wl,-h,libsqlite3.so.0/' Makefile
   '';
 
   postInstall = ''
