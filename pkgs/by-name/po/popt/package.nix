@@ -54,6 +54,10 @@ stdenv.mkDerivation (finalAttrs: {
 
   doCheck = false; # fails
 
+  # illumos declares iconv() with a `const char **` input buffer unless _XOPEN_SOURCE is 600 or later, and
+  # popt passes `char **` (the POSIX prototype), which gcc 14 rejects. configure sets __EXTENSIONS__ already.
+  env = lib.optionalAttrs stdenv.hostPlatform.isSunOS { NIX_CFLAGS_COMPILE = "-D_XOPEN_SOURCE=600"; };
+
   meta = {
     homepage = "https://github.com/rpm-software-management/popt";
     description = "Command line option parsing library";
