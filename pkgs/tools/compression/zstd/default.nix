@@ -89,6 +89,14 @@ stdenv.mkDerivation (finalAttrs: {
     runHook preCheck
     # Patch shebangs for playTests
     patchShebangs ../programs/zstdgrep
+  ''
+  # playTests.sh looks for GNU diff as gdiff on SunOS, and its #!/bin/sh would run the host's
+  # ksh93, under which it fails; run it with the stdenv shell instead.
+  + lib.optionalString stdenv.hostPlatform.isSunOS ''
+    export DIFF=diff
+    patchShebangs ../tests/playTests.sh
+  ''
+  + ''
     ctest -R playTests # The only relatively fast test.
     runHook postCheck
   '';
