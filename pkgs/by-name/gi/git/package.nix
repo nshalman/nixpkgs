@@ -154,6 +154,10 @@ stdenv.mkDerivation (finalAttrs: {
     # Hard-code the ssh executable to ${pkgs.openssh}/bin/ssh instead of
     # searching in $PATH
     ./ssh-path.patch
+  ]
+  ++ lib.optionals stdenv.hostPlatform.isSunOS [
+    # uname() returns 1 on success on illumos, which POSIX allows; git treated it as a failure
+    ./uname-return-value.patch
   ];
 
   postPatch = ''
@@ -597,7 +601,7 @@ stdenv.mkDerivation (finalAttrs: {
     disable_test t5324-split-commit-graph
     # known breakage vanished?
     disable_test t7815-grep-binary
-  '';
+  ''
 
   stripDebugList = [
     "lib"

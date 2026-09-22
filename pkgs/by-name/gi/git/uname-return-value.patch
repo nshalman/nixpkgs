@@ -1,0 +1,21 @@
+version: treat any non-negative uname() return as success
+
+POSIX specifies that uname() returns a non-negative value on success, and
+illumos returns 1, so the check in get_uname_info() reports every call as a
+failure there, with a stale errno:
+
+  agent=git/2.54.0-uname().failed.with.error.'No.such.file.or.directory'.(2)
+
+Test for a negative return, as dir.c already does.
+
+--- a/version.c	2026-09-22 17:43:02.490369702 -0400
++++ b/version.c	2026-09-22 17:43:03.429402194 -0400
+@@ -83,7 +83,7 @@
+ {
+ 	struct utsname uname_info;
+ 
+-	if (uname(&uname_info)) {
++	if (uname(&uname_info) < 0) {
+ 		strbuf_addf(buf, _("uname() failed with error '%s' (%d)\n"),
+ 			    strerror(errno),
+ 			    errno);
