@@ -1,5 +1,6 @@
 {
   lib,
+  stdenv,
   buildPythonPackage,
   fetchFromGitHub,
   pytestCheckHook,
@@ -24,6 +25,11 @@ buildPythonPackage rec {
     # Add -m flag to installer to correctly support cross
     # https://github.com/pypa/installer/pull/258
     ./cross.patch
+  ]
+  ++ lib.optionals stdenv.hostPlatform.isSunOS [
+    # with --destdir the target path is resolved through the host filesystem, and /bin is a
+    # symlink to usr/bin on illumos, so scripts landed in $out/usr/bin
+    ./destdir-no-resolve.patch
   ];
 
   nativeBuildInputs = [ flit-core ];

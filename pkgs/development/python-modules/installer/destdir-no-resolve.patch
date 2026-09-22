@@ -1,0 +1,19 @@
+With --destdir, the target path is resolved through the host filesystem
+before it is re-rooted, so where a file lands depends on host symlinks:
+on illumos /bin is a symlink to usr/bin, and scripts end up in
+<destdir>/usr/bin. Normalise the path without following symlinks; the
+traversal check still works on the normalised path.
+
+--- a/src/installer/destinations.py	Tue Sep 22 17:53:47 2026
++++ b/src/installer/destinations.py	Tue Sep 22 17:53:47 2026
+@@ -136,8 +136,8 @@
+     """Silently overwrite existing files."""
+ 
+     def _path_with_destdir(self, scheme: Scheme, path: str) -> Path:
+-        target_dir = Path(self.scheme_dict[scheme]).resolve()
+-        file = (target_dir / path).resolve()
++        target_dir = Path(os.path.normpath(Path(self.scheme_dict[scheme]).absolute()))
++        file = Path(os.path.normpath(target_dir / path))
+ 
+         if not file.is_relative_to(target_dir):
+             raise ValueError(
