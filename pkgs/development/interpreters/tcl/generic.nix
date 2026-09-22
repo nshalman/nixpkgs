@@ -35,6 +35,11 @@ let
         --replace "/usr/lib/zoneinfo" "" \
         --replace "/usr/local/etc/zoneinfo" ""
     ''
+    # The bundled sqlite package asks for alloca() unconditionally, but sqlite3.c never includes
+    # <alloca.h>, where illumos declares it.
+    + lib.optionalString stdenv.hostPlatform.isSunOS ''
+      sed -i 's/ -DSQLITE_USE_ALLOCA=1//' pkgs/sqlite3*/configure
+    ''
     + extraPatch;
 
     nativeBuildInputs = lib.optionals (lib.versionAtLeast version "9.0") [
