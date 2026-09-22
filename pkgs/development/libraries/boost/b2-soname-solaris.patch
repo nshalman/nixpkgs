@@ -1,0 +1,18 @@
+b2 gives shared libraries a soname on every generic OS but leaves Solaris out,
+so the illumos linker records the path a dependency was linked with (relative
+build paths inside boost, absolute store paths in consumers) instead of a
+name. The illumos linker takes -h for the soname.
+
+--- a/src/tools/gcc.jam	2026-09-22 15:23:52.262527117 -0400
++++ b/src/tools/gcc.jam	2026-09-22 15:23:53.305563024 -0400
+@@ -984,6 +984,10 @@
+     toolset.flags gcc.link HAVE_SONAME <target-os>$(soname-os) : "" ;
+     toolset.flags gcc.link SONAME_OPTION <target-os>$(soname-os) : -soname ;
+ 
++    # Solaris/illumos: the linker takes -h for the soname
++    toolset.flags gcc.link HAVE_SONAME <target-os>solaris : "" ;
++    toolset.flags gcc.link SONAME_OPTION <target-os>solaris : -h ;
++
+     # See note [1]
+     toolset.flags gcc.link OPTIONS <target-os>$(generic-os)/<runtime-link>static : -static ;
+ 

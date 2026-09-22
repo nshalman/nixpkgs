@@ -148,6 +148,8 @@ let
     ++ lib.optional (variant == "release") "debug-symbols=off"
     ++ lib.optional (toolset != null) "toolset=${toolset}"
     ++ lib.optional (!enablePython) "--without-python"
+    # Boost.Process binds libkvm on illumos, a private interface
+    ++ lib.optional stdenv.hostPlatform.isSunOS "--without-process"
     ++ lib.optional needUserConfig "--user-config=user-config.jam"
     ++ lib.optional (stdenv.buildPlatform.isDarwin && stdenv.hostPlatform.isLinux) "pch=off"
     ++ lib.optionals stdenv.hostPlatform.isMinGW [
@@ -306,7 +308,10 @@ stdenv.mkDerivation {
   };
 
   passthru = {
-    inherit boostBuildPatches;
+    # b2 is built separately from this source (boost-build); it gives shared libraries no
+    # soname on Solaris, so the illumos linker records paths instead of names
+    boostBuildPatches =
+      boostBuildPatches ++ lib.optional stdenv.hostPlatform.isSunOS ./b2-soname-solaris.patch;
   };
 
   preConfigure =
