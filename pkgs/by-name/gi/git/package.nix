@@ -602,6 +602,10 @@ stdenv.mkDerivation (finalAttrs: {
     # known breakage vanished?
     disable_test t7815-grep-binary
   ''
+  + lib.optionalString stdenv.hostPlatform.isSunOS ''
+    # test 12 is a known breakage that passes with git's bundled regex (NO_REGEX on SunOS); prove fails on it
+    disable_test t7815-grep-binary
+  '';
 
   stripDebugList = [
     "lib"
