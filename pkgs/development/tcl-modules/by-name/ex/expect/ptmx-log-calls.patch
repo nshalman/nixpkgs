@@ -1,0 +1,28 @@
+The /dev/ptmx paths pass the slave fd, an int, where expDiagLogPtrStrStr()
+expects a string; gcc 14 rejects that. Log the errno message alone.
+
+--- a/pty_termios.c	Tue Sep 22 16:50:59 2026
++++ b/pty_termios.c	Tue Sep 22 16:50:59 2026
+@@ -663,18 +663,18 @@
+ #if defined(HAVE_PTMX_BSD)
+ 	if (ioctl (slave, I_LOOK, buf) != 0)
+ 		if (ioctl (slave, I_PUSH, "ldterm")) {
+-			expDiagLogPtrStrStr("ioctl(%d,I_PUSH,\"ldterm\") = %s\n",slave,expErrnoMsg(errno));
++			expDiagLogPtrStr("ioctl(I_PUSH,\"ldterm\") = %s\n",expErrnoMsg(errno));
+ 	}
+ #else
+ #if defined(HAVE_PTMX)
+ 	if (ioctl(slave, I_PUSH, "ptem")) {
+-		expDiagLogPtrStrStr("ioctl(%d,I_PUSH,\"ptem\") = %s\n",slave,expErrnoMsg(errno));
++		expDiagLogPtrStr("ioctl(I_PUSH,\"ptem\") = %s\n",expErrnoMsg(errno));
+ 	}
+ 	if (ioctl(slave, I_PUSH, "ldterm")) {
+-		expDiagLogPtrStrStr("ioctl(%d,I_PUSH,\"ldterm\") = %s\n",slave,expErrnoMsg(errno));
++		expDiagLogPtrStr("ioctl(I_PUSH,\"ldterm\") = %s\n",expErrnoMsg(errno));
+ 	}
+ 	if (ioctl(slave, I_PUSH, "ttcompat")) {
+-		expDiagLogPtrStrStr("ioctl(%d,I_PUSH,\"ttcompat\") = %s\n",slave,expErrnoMsg(errno));
++		expDiagLogPtrStr("ioctl(I_PUSH,\"ttcompat\") = %s\n",expErrnoMsg(errno));
+ 	}
+ #endif
+ #endif

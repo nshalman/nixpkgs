@@ -38,10 +38,24 @@ tcl.mkTclDerivation rec {
     ./fix-darwin-bsd-clang16.patch
     # Remove some code which causes it to link against a file that does not exist at build time on native FreeBSD
     ./freebsd-unversioned.patch
+  ]
+  ++ lib.optionals stdenv.hostPlatform.isSunOS [
+    # the /dev/ptmx paths pass an int where a string is expected; gcc 14 rejects that
+    ./ptmx-log-calls.patch
   ];
 
   postPatch = ''
     sed -i "s,/bin/stty,$(type -p stty),g" configure.in
+  ''
+  # exp_rearm_sigchld() calls exp_dsleep() under REARM_SIG, which configure defines on SysV-style
+  # signal systems such as illumos, but exp_trap.c does not include the header that declares it.
+  # ioctl() is declared in <unistd.h> on illumos. <pty.h> only exists for openpty(), which illumos
+  # does not have; the pty code takes the /dev/ptmx path there.
+  + lib.optionalString stdenv.hostPlatform.isSunOS ''
+    sed -i '/#include "exp_command.h"/a #include "exp_event.h"' exp_trap.c
+    sed -i '/#include <stdlib.h>/a #include <unistd.h>' exp_win.c
+    sed -i '/#include "exp_pty.h"/a #include "exp_int.h"' pty_termios.c
+    substituteInPlace pty_termios.c --replace-fail '#else /* pty.h is Linux-specific */' '#elif !defined(__sun)'
   '';
 
   nativeBuildInputs = [
@@ -58,7 +72,10 @@ tcl.mkTclDerivation rec {
       # Autoconf 2.73 defaults to C23, but Expect uses K&R style function declarations.
       ++ [ "-std=gnu17" ]
     );
-  };
+  }
+  # The sources prefer <sys/fcntl.h> where configure finds it; on illumos that header defines
+  # the flags but does not declare open(). Make every file take the <fcntl.h> branch.
+  // lib.optionalAttrs stdenv.hostPlatform.isSunOS { ac_cv_header_sys_fcntl_h = "no"; };
 
   hardeningDisable = [ "format" ];
 
