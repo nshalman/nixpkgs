@@ -73,6 +73,12 @@ let
         # configure check broke due to GCC 14
         "ac_cv_header_stdc=yes"
       ]
+      ++ lib.optionals stdenv.hostPlatform.isSunOS [
+        # The endianness test program calls exit() without <stdlib.h>, GCC 14 rejects it, and
+        # autoconf 2.59 counts the failure as big-endian. Linux never gets there because its
+        # <sys/param.h> defines BYTE_ORDER; illumos's does not.
+        "ac_cv_c_bigendian=${if stdenv.hostPlatform.isBigEndian then "yes" else "no"}"
+      ]
       ++ lib.optionals (lib.versionAtLeast version "9.0") [
         # By default, tcl libraries get zipped and embedded into libtcl*.so,
         # which gets `zipfs mount`ed at runtime. This is fragile (for example
