@@ -17,7 +17,8 @@
   # Whether to link against mimalloc for malloc override.
   # Significantly improves evaluation performance on allocation-heavy
   # workloads (~10-15% on large evaluations).
-  withMimalloc ? !stdenv.hostPlatform.isWindows,
+  # mimalloc's own tests segfault on illumos, see its badPlatforms.
+  withMimalloc ? !stdenv.hostPlatform.isWindows && !stdenv.hostPlatform.isSunOS,
 }:
 
 mkMesonExecutable (finalAttrs: {

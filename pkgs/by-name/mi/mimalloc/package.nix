@@ -84,6 +84,8 @@ stdenv.mkDerivation (finalAttrs: {
     homepage = "https://github.com/microsoft/mimalloc";
     license = lib.licenses.bsd2;
     platforms = lib.platforms.unix;
+    # illumos: builds, but every test segfaults right after reserving the arena
+    badPlatforms = lib.platforms.illumos;
     maintainers = with lib.maintainers; [
       kamadorueda
       thoughtpolice
