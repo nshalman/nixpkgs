@@ -463,6 +463,12 @@ stdenv.mkDerivation (finalAttrs: {
     + optionalString mimetypesSupport ''
       substituteInPlace Lib/mimetypes.py \
         --replace-fail "@mime-types@" "${mailcap}"
+    ''
+    # the socket module needs the socket libraries on illumos (h_errno is in libnsl, hstrerror in
+    # libresolv); the module has no link-flags variable of its own
+    + optionalString stdenv.hostPlatform.isSunOS ''
+      substituteInPlace Modules/Setup.stdlib.in \
+        --replace-fail '@MODULE__SOCKET_TRUE@_socket socketmodule.c' '@MODULE__SOCKET_TRUE@_socket socketmodule.c -lsocket -lnsl -lresolv'
     '';
 
   env = {
@@ -483,6 +489,11 @@ stdenv.mkDerivation (finalAttrs: {
   # https://docs.python.org/3/using/configure.html
   configureFlags = [
     "--without-ensurepip"
+  ]
+  # preConfigure blanks `uname -r` in config.guess, and config.guess needs the release to
+  # recognize SunOS; tell it the build type instead.
+  ++ optionals stdenv.hostPlatform.isSunOS [
+    "--build=${stdenv.buildPlatform.config}"
   ]
   ++ optionals withExpat [
     "--with-system-expat"
@@ -569,6 +580,10 @@ stdenv.mkDerivation (finalAttrs: {
     # Attempt to purify some of the host info collection
     sed -E -i -e 's/uname -r/echo/g' -e 's/uname -n/echo nixpkgs/g' config.guess
     sed -E -i -e 's/uname -r/echo/g' -e 's/uname -n/echo nixpkgs/g' configure
+  ''
+  # configure derives Py_SUNOS_VERSION from that release; illumos is SunOS 5.11
+  + optionalString stdenv.hostPlatform.isSunOS ''
+    substituteInPlace configure --replace-fail 'ac_sys_release=`echo`' 'ac_sys_release=5.11'
   ''
   + optionalString (pythonOlder "3.12") ''
     # Improve purity
