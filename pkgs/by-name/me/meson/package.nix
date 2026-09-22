@@ -106,6 +106,10 @@ python3.pkgs.buildPythonApplication rec {
     libblocksruntime
   ];
 
+  # illumos: six project tests fail on GNU-ld and Linux expectations (linuxlike: linker script,
+  # ld binary; common: has header symbol, openmp, function attributes)
+  doCheck = !stdenv.hostPlatform.isSunOS;
+
   checkPhase = lib.concatStringsSep "\n" (
     [
       "runHook preCheck"
