@@ -50,6 +50,10 @@ stdenv.mkDerivation (finalAttrs: {
   configureFlags = [
     "--with-gcc-arch=generic" # no detection of -march= or -mtune=
     "--enable-pax_emutramp"
+  ]
+  ++ lib.optionals stdenv.hostPlatform.isSunOS [
+    # the Solaris-style linker mapfile is generated with a perl script
+    "--disable-symvers"
   ];
 
   preCheck = ''
