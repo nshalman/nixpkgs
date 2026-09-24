@@ -50,6 +50,11 @@ stdenv.mkDerivation (finalAttrs: {
     echo "#!/bin/sh" > scripts/version
     echo "echo ${finalAttrs.version}" >> scripts/version
     patchShebangs scripts/version
+  ''
+  # Unless MAKE is set, configure takes /usr/gnu/bin/make on SunOS (the
+  # Solaris 11 path), which a build does not have.
+  + lib.optionalString stdenv.hostPlatform.isSunOS ''
+    export MAKE=make
   '';
 
   # paranoid mode: make sure we never use vendored version of oniguruma
@@ -93,7 +98,9 @@ stdenv.mkDerivation (finalAttrs: {
   doInstallCheck = true;
   installCheckTarget = "check";
 
-  preInstallCheck = ''
+  # illumos libc reads TZ only as a name under its own zoneinfo directory
+  # (an absolute path gives GMT), so there the tests keep the names.
+  preInstallCheck = lib.optionalString (!stdenv.hostPlatform.isSunOS) ''
     substituteInPlace tests/shtest \
       --replace-fail "TZ=" "TZ=${tzdata}/share/zoneinfo/"
   '';
