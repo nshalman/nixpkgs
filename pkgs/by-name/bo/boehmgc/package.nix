@@ -39,6 +39,9 @@ stdenv.mkDerivation (finalAttrs: {
 
   __structuredAttrs = true;
 
+  # The GC heap at 1 GiB would cap the system malloc's brk heap below it.
+  ${if stdenv.hostPlatform.isSunOS then "patches" else null} = [ ./solaris-heap-start.patch ];
+
   nativeBuildInputs = [
     autoreconfHook
   ];

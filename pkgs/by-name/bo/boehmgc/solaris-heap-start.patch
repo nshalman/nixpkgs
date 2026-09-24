@@ -1,0 +1,24 @@
+On Solaris, bdwgc asks mmap for its heap at 0x40000000. In a 64-bit process the
+system malloc's heap grows with brk from just above the program, and brk cannot
+grow into a mapping: the GC heap at 1 GiB leaves malloc about 940 MiB however
+much memory is free (Nix's `nix copy` runs out compressing several paths at
+once). Keep the hint for 32-bit processes only; without one, mmap places the GC
+heap high in the address space.
+
+--- a/include/private/gcconfig.h
++++ b/include/private/gcconfig.h
+@@ -1128,7 +1128,13 @@
+         /* doesn't interact correctly with the system malloc.       */
+ #   endif
+ #   ifdef USE_MMAP
+-#     define HEAP_START (ptr_t)0x40000000
++#     ifndef _LP64
++#       define HEAP_START (ptr_t)0x40000000
++#     endif
++        /* A 64-bit process has malloc's heap grow with brk from    */
++        /* just above the program; a GC heap mapped at 1 GiB would  */
++        /* stop it there.  Without a hint the kernel places the GC  */
++        /* heap high up, clear of it.                               */
+ #   else
+ #     define HEAP_START DATAEND
+ #   endif
