@@ -36,8 +36,11 @@ stdenv.mkDerivation (finalAttrs: {
 
   configureFlags = [
     "--with-env-editor"
-    "--with-editor=/run/current-system/sw/bin/nano"
-    "--with-rundir=/run/sudo"
+    # illumos has no /run, and no nano in its base system
+    "--with-editor=${
+      if stdenv.hostPlatform.isSunOS then "/usr/bin/vi" else "/run/current-system/sw/bin/nano"
+    }"
+    "--with-rundir=${if stdenv.hostPlatform.isSunOS then "/var/run/sudo" else "/run/sudo"}"
     "--with-vardir=/var/db/sudo"
     "--with-logpath=/var/log/sudo.log"
     "--with-iologdir=/var/log/sudo-io"
@@ -77,7 +80,10 @@ stdenv.mkDerivation (finalAttrs: {
 
   depsBuildBuild = [ buildPackages.stdenv.cc ];
   nativeBuildInputs = [ groff ];
-  buildInputs = lib.optionals (!stdenv.hostPlatform.isOpenBSD) [ pam ];
+  # illumos' own PAM comes with its libc; nixpkgs' pam is Linux-PAM
+  buildInputs = lib.optionals (!stdenv.hostPlatform.isOpenBSD && !stdenv.hostPlatform.isSunOS) [
+    pam
+  ];
 
   enableParallelBuilding = true;
 
@@ -113,7 +119,8 @@ stdenv.mkDerivation (finalAttrs: {
       zlib
     ];
     maintainers = with lib.maintainers; [ rhendric ];
-    platforms = lib.platforms.linux ++ lib.platforms.freebsd ++ lib.platforms.openbsd;
+    platforms =
+      lib.platforms.linux ++ lib.platforms.freebsd ++ lib.platforms.openbsd ++ lib.platforms.illumos;
     mainProgram = "sudo";
   };
 })
