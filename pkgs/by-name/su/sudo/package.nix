@@ -11,7 +11,9 @@
   genericUpdater,
   writeShellScript,
   curl,
-  sendmailPath ? "/run/wrappers/bin/sendmail",
+  # illumos ships sendmail's path, /usr/sbin/sendmail, in its base system (a mailwrapper)
+  sendmailPath ?
+    if stdenv.hostPlatform.isSunOS then "/usr/sbin/sendmail" else "/run/wrappers/bin/sendmail",
   withInsults ? false,
   withSssd ? false,
 }:
