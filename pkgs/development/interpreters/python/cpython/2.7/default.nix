@@ -212,6 +212,15 @@ let
     substituteInPlace configure --replace '`/usr/bin/arch`' '"i386"'
     substituteInPlace Lib/multiprocessing/__init__.py \
       --replace 'os.popen(comm)' 'os.popen("${coreutils}/bin/nproc")'
+  ''
+  # the socket functions are in the socket libraries on illumos (h_errno in libnsl, hstrerror in libresolv, the
+  # X/Open recvmsg that _multiprocessing uses in libsocket); without them setup.py renames the modules *_failed
+  + lib.optionalString stdenv.hostPlatform.isSunOS ''
+    substituteInPlace setup.py \
+      --replace-fail "Extension('_socket', ['socketmodule.c', 'timemodule.c']," \
+                     "Extension('_socket', ['socketmodule.c', 'timemodule.c'], extra_link_args=['-lsocket', '-lnsl', '-lresolv']," \
+      --replace-fail "Extension('_multiprocessing', multiprocessing_srcs," \
+                     "Extension('_multiprocessing', multiprocessing_srcs, extra_link_args=['-lsocket'],"
   '';
 
   configureFlags =
