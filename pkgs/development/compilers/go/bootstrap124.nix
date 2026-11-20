@@ -5,6 +5,7 @@ callPackage ./binary.nix {
     # Use `print-hashes.sh ${version}` to generate the list below
     darwin-amd64 = "6cc6549b06725220b342b740497ffd24e0ebdcef75781a77931ca199f46ad781";
     darwin-arm64 = "f282d882c3353485e2fc6c634606d85caf36e855167d59b996dbeae19fa7629a";
+    illumos-amd64 = "140c87078e2570c179327cb11d515c8396f969ecc202def008b179a1a8ce8919";
     freebsd-386 = "1e3bd90c1d138a3d4bbc39f3990f59faab5e9d83006b51c5dec17538716d2651";
     freebsd-amd64 = "96e3c439befbb365ecde3ae475f9319ef7693d5d66a05992e8f8d29c60a63761";
     freebsd-arm = "3d8005886f2dff23357d5d36e7759fdadc642d5207c01bd9e761d5d9e27f3257";
