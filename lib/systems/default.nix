@@ -599,7 +599,13 @@ let
               "wasm32" = "wasm";
             }
             .${final.parsed.cpu.name} or null;
-          GOOS = if final.isWasi then "wasip1" else final.parsed.kernel.name;
+          GOOS =
+            if final.isWasi then
+              "wasip1"
+            else if final.isSunOS then
+              "illumos"
+            else
+              final.parsed.kernel.name;
 
           # See https://go.dev/wiki/GoArm
           GOARM = toString (lib.intersectLists [ (final.parsed.cpu.version or "") ] [ "5" "6" "7" ]);
